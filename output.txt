@@ -1,0 +1,103 @@
+Server started
+Worker 2 got a job, executing.
+new connection
+about to read new request line
+status line: GET / HTTP/1.1
+Host: 212.132.120.118:7878
+0
+Connection: keep-alive
+1
+Pragma: no-cache
+2
+Cache-Control: no-cache
+3
+Upgrade-Insecure-Requests: 1
+4
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36
+5
+Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7
+6
+Accept-Encoding: gzip, deflate
+7
+Accept-Language: en-US,en;q=0.9,de-DE;q=0.8,de;q=0.7
+8
+buffer printed
+GET / HTTP/1.1
+Worker 0 got a job, executing.
+new connection
+about to read new request line
+status line: POST /api/gettest HTTP/1.1
+Host: 212.132.120.118:7878
+0
+Connection: keep-alive
+1
+Content-Length: 21
+2
+Pragma: no-cache
+3
+Cache-Control: no-cache
+4
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36
+5
+Accept: application/json
+6
+Content-Type: application/json
+7
+Origin: http://212.132.120.118:7878
+8
+Referer: http://212.132.120.118:7878/
+9
+Accept-Encoding: gzip, deflate
+10
+Accept-Language: en-US,en;q=0.9,de-DE;q=0.8,de;q=0.7
+11
+buffer printed
+POST /api/gettest HTTP/1.1
+Worker 1 got a job, executing.
+new connection
+about to read new request line
+status line: GET /lib/test.php HTTP/1.1
+Host: 212.132.120.118:7878
+0
+Connection: keep-alive
+1
+Pragma: no-cache
+2
+Cache-Control: no-cache
+3
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36
+4
+Accept: */*
+5
+Referer: http://212.132.120.118:7878/
+6
+Accept-Encoding: gzip, deflate
+7
+Accept-Language: en-US,en;q=0.9,de-DE;q=0.8,de;q=0.7
+8
+buffer printed
+GET /lib/test.php HTTP/1.1
+Worker 3 got a job, executing.
+new connection
+about to read new request line
+status line: GET /favicon.ico HTTP/1.1
+Host: 212.132.120.118:7878
+0
+Connection: keep-alive
+1
+Pragma: no-cache
+2
+Cache-Control: no-cache
+3
+User-Agent: Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36
+4
+Accept: image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8
+5
+Referer: http://212.132.120.118:7878/
+6
+Accept-Encoding: gzip, deflate
+7
+Accept-Language: en-US,en;q=0.9,de-DE;q=0.8,de;q=0.7
+8
+buffer printed
+GET /favicon.ico HTTP/1.1

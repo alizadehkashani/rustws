@@ -62,15 +62,17 @@ impl Worker {
     pub fn new(id: usize, receiver: Arc<Mutex<mpsc::Receiver<Job>>>) -> Worker {
 
         let thread = thread::spawn(move || loop {
-            let message = receiver.lock().unwrap().recv().unwrap();
+            let message = receiver.lock().unwrap().recv();
 
             match message {
-                Ok(job) => 
+                Ok(job) => { 
                     println!("Worker {id} got a job, executing.");
                     job();
-                Err(_) => 
+                }
+                Err(_) => {
                     println!("Worker {id} disconnected");
                     break;
+                }
             }
 
         });
