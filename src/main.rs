@@ -4,11 +4,13 @@ use std::{
     net::{TcpListener, TcpStream},
     thread,
     time::Duration,
+    collections::HashMap,
 };
 use webserver::ThreadPool;
 
 fn main() {
     println!("Server started");
+    db_query();
     let listener = TcpListener::bind("212.132.120.118:7878").unwrap();
     let pool = ThreadPool::new(4);
 
@@ -19,6 +21,7 @@ fn main() {
             handle_connection(stream);
         });
     }
+
 }
 
 fn handle_connection(mut stream: TcpStream) {
@@ -39,7 +42,6 @@ fn handle_connection(mut stream: TcpStream) {
     let method = request_line_split_iter.next().unwrap();
     let _path = request_line_split_iter.next().unwrap();
     let _protocol = request_line_split_iter.next().unwrap();
-
 
 
     let mut content_length: usize = 0;
@@ -67,7 +69,7 @@ fn handle_connection(mut stream: TcpStream) {
         //println!("{}", header_line);
     }
 
-    let mut body_vec = Vec::new();
+    let mut body_hash = HashMap::new();
 
     if method == "POST" {
         //println!("post method used");
@@ -92,12 +94,12 @@ fn handle_connection(mut stream: TcpStream) {
             let value_trim: &str = &value[1..value.len() - 1];
             println!("{}",value_trim);
 
-            body_vec.push((key_trim, value_trim));
+            body_hash.insert(key_trim, value_trim);
         };
- 
-        println!("{:?}", body_vec);
 
         println!("body: {}", body);
+        println!("hashmap: {:?}", body_hash);
+        println!("user: {}", body_hash.get("user").unwrap());
 
         let status_line = "HTTP/1.1 200 OK";
 
@@ -130,6 +132,117 @@ fn handle_connection(mut stream: TcpStream) {
             format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
 
         stream.write_all(response.as_bytes()).unwrap();
+    }
+
+}
+
+fn db_query () {
+    println!("db query function triggered");
+    let host = "127.0.0.1";
+    let port = 5432;
+    let version_major: i16 = 3;
+    let version_minor: i16 = 0;
+    let mut content_length: i32 = 4;
+    let username = String::from("root");
+    let database = String::from("memeoff");
+
+    let mut stream = TcpStream::connect((host, port)).unwrap(); 
+
+    let mut startup_message: Vec<u8> = vec![];
+    let mut startup_message_body: Vec<u8> = vec![];
+
+    //add protocol version
+    for bytes in version_major.to_be_bytes() {
+        startup_message_body.push(bytes);
+        content_length += 1;
+    }
+
+    for bytes in version_minor.to_be_bytes() {
+        startup_message_body.push(bytes);
+        content_length += 1;
+    }
+
+    //startup_message_body.extend_from_slice(&version.to_be_bytes());
+
+    //add 'key' for user
+    for bytes in "user".as_bytes() {
+        startup_message_body.push(*bytes);
+        content_length += 1;
+    }
+
+    //add null terminator after user key
+    startup_message_body.push(0x00);
+    content_length += 1;
+
+    //add username
+    for bytes in username.as_bytes() {
+        startup_message_body.push(*bytes);
+        content_length += 1;
+    }
+
+    //add null terminator after user string
+    startup_message_body.push(0x00);
+    content_length += 1;
+
+    //add 'key' for database
+    for bytes in "database".as_bytes() {
+        startup_message_body.push(*bytes);
+        content_length += 1;
+    }
+
+    //add null terminator after database key
+    startup_message_body.push(0x00);
+    content_length += 1;
+
+    //add database
+    for bytes in database.as_bytes() {
+        startup_message_body.push(*bytes);
+        content_length += 1;
+    }
+
+    //add null terminator after user string
+    startup_message_body.push(0x00);
+    content_length += 1;
+
+    //add null terminator after end of startup message
+    startup_message_body.push(0x00);
+    content_length += 1;
+    
+    //add content length
+    for bytes in content_length.to_be_bytes() {
+        startup_message.push(bytes);
+    }
+    
+    //merge vectors
+    for bytes in startup_message_body {
+        startup_message.push(bytes);
+    }
+
+    println!("{:?}", startup_message);
+    println!("{}", content_length);
+
+    stream.write_all(&startup_message).unwrap();
+
+    /*
+    let mut buf_reader = BufReader::new(&stream);
+    let mut response: Vec<u8> = vec![0; 1000];
+    buf_reader.read_exact(&mut response).unwrap(); 
+    println!("{:?}", response);
+    */
+
+    let mut buf_reader = BufReader::new(&stream);
+
+    loop {
+        let mut db_line = String::new();
+
+        buf_reader.read_line(&mut db_line).unwrap();
+
+        println!("{}", db_line);
+
+        if db_line.is_empty() {
+            println!("line from db is empty");
+            break;
+        }
     }
 
 }
