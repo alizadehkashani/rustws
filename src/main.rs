@@ -145,6 +145,7 @@ fn db_query () {
     let mut content_length: i32 = 4;
     let username = String::from("root");
     let database = String::from("memeoff");
+    let password = String::from("admin");
 
     let mut stream = TcpStream::connect((host, port)).unwrap(); 
 
@@ -161,8 +162,6 @@ fn db_query () {
         startup_message_body.push(bytes);
         content_length += 1;
     }
-
-    //startup_message_body.extend_from_slice(&version.to_be_bytes());
 
     //add 'key' for user
     for bytes in "user".as_bytes() {
@@ -218,31 +217,95 @@ fn db_query () {
         startup_message.push(bytes);
     }
 
-    println!("{:?}", startup_message);
-    println!("{}", content_length);
+    //println!("{:?}", startup_message);
+    //println!("{}", content_length);
 
+    //send startup message to db server
     stream.write_all(&startup_message).unwrap();
 
-    /*
-    let mut buf_reader = BufReader::new(&stream);
-    let mut response: Vec<u8> = vec![0; 1000];
-    buf_reader.read_exact(&mut response).unwrap(); 
-    println!("{:?}", response);
-    */
-
+    //create buf reader for server reply
     let mut buf_reader = BufReader::new(&stream);
 
-    loop {
-        let mut db_line = String::new();
+    //create vector to hold initial ascii char 1byte of reply and content length 4bytes
+    let mut response_code_length: Vec<u8> = vec![0; 9];
 
-        buf_reader.read_line(&mut db_line).unwrap();
+    //read from stream into initial response
+    buf_reader.read_exact(&mut response_code_length).unwrap(); 
+    println!("{:?}", response_code_length);
 
-        println!("{}", db_line);
+    //turn ascii packet identifier into char
+    let packet_identifier = char::from_u32(response_code_length[0] as u32).unwrap();
 
-        if db_line.is_empty() {
-            println!("line from db is empty");
-            break;
-        }
+    println!("{}", packet_identifier);
+
+    //retrieve content length from packet
+    //create array holding the bytes of the content length
+    let mut content_length_bytes: [u8; 4] = [0; 4];
+
+    //position for array where the bytes of the content length are to be inserted
+    let mut array_pos = 0;
+
+    //loop through the inital packet an retrieve the individual bytes of the content length
+    for bytes in &mut response_code_length[1..5] {
+        content_length_bytes[array_pos] = *bytes;
+        array_pos += 1;
     }
+
+    //array holding the bytes of the authentication method
+    let mut auth_method_bytes: [u8; 4] = [0; 4];
+
+    //reset array pos
+    array_pos = 0;
+
+    //loop through the inital packet an retrieve the individual bytes of the auth method
+    for bytes in &mut response_code_length[5..] {
+        auth_method_bytes[array_pos] = *bytes;
+        array_pos += 1;
+    }
+
+    //turn the bytes into an integer
+    let auth_method: i32 = i32::from_be_bytes(auth_method_bytes);
+    println!("{}", auth_method);
+
+    //check for authentication method
+    //in this case, its always 3, plain text password
+    if auth_method != 3 {
+       panic!("authentication method was anthing elese but 3, plain text"); 
+    }
+    
+    //send password
+     
+    let mut password_message: Vec<u8> = vec![];
+    let mut password_message_body: Vec<u8> = vec![];
+    let mut password_message_length: i32 = 5;
+
+
+    //add username
+    for bytes in password.as_bytes() {
+        password_message_body.push(*bytes);
+        password_message_length += 1;
+    }
+
+    //add null terminator after user string
+    password_message_body.push(0x00);
+    password_message_length += 1;
+
+    //add char tag
+    password_message.push(b'p');
+
+    //add password message length
+    for bytes in password_message_length.to_be_bytes() {
+        password_message.push(bytes);
+    }
+    
+    //merge vectors
+    for bytes in password_message_body {
+        password_message.push(bytes);
+    }
+
+    println!("{:?}", password_message);
+
+    //send startup message to db server
+    stream.write_all(&password_message).unwrap();
 
 }
