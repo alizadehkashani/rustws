@@ -7,17 +7,27 @@ use std::{
     collections::HashMap,
 };
 use webserver::ThreadPool;
+use webserver::DatabaseConnection;
+
 
 fn main() {
     println!("Server started");
-    db_query();
+    //db_query();
+    DatabaseConnection::new("127.0.0.1", 5432, "smgadmin", "admin", "memeoff", 0);
+    //DatabaseConnection::new("127.0.0.1", 5432, "smgadmin", "admin", "memeoff", 1);
+    //DatabaseConnection::new("127.0.0.1", 5432, "smgadmin", "admin", "memeoff", 2);
+    //DatabaseConnection::new("127.0.0.1", 5432, "smgadmin", "admin", "memeoff", 3);
+
     let listener = TcpListener::bind("212.132.120.118:7878").unwrap();
-    let pool = ThreadPool::new(4);
+    let threadpool = ThreadPool::new(4);
+
+    
+    println!("after pool creation");
 
     for stream in listener.incoming() {
         let stream = stream.unwrap();
         
-        pool.execute(|| {
+        threadpool.execute(|| {
             handle_connection(stream);
         });
     }
@@ -136,176 +146,97 @@ fn handle_connection(mut stream: TcpStream) {
 
 }
 
+//write to database stream
+fn write_to_db_stream (stream: &mut TcpStream, message: &Vec<u8>) {
+    stream.write_all(message).unwrap();
+    
+}
+
+//read from database stream
+//read exact into vector
+fn read_from_db_stream<R> (buf_reader: &mut BufReader<R>, response_vector: &mut Vec<u8>) where R: std::io::Read {
+    buf_reader.read_exact(response_vector).unwrap(); 
+
+}
+
+#[allow(dead_code)]
 fn db_query () {
-    println!("db query function triggered");
-    let host = "127.0.0.1";
-    let port = 5432;
-    let version_major: i16 = 3;
-    let version_minor: i16 = 0;
-    let mut content_length: i32 = 4;
-    let username = String::from("root");
-    let database = String::from("memeoff");
-    let password = String::from("admin");
+    /*
 
-    let mut stream = TcpStream::connect((host, port)).unwrap(); 
-
-    let mut startup_message: Vec<u8> = vec![];
-    let mut startup_message_body: Vec<u8> = vec![];
-
-    //add protocol version
-    for bytes in version_major.to_be_bytes() {
-        startup_message_body.push(bytes);
-        content_length += 1;
-    }
-
-    for bytes in version_minor.to_be_bytes() {
-        startup_message_body.push(bytes);
-        content_length += 1;
-    }
-
-    //add 'key' for user
-    for bytes in "user".as_bytes() {
-        startup_message_body.push(*bytes);
-        content_length += 1;
-    }
-
-    //add null terminator after user key
-    startup_message_body.push(0x00);
-    content_length += 1;
+    //send query
+    let query = String::from("SELECT * FROM users");
+    let mut query_vec_head: Vec<u8> = vec![];
+    let mut query_vec_body: Vec<u8> = vec![];
+    let mut query_length: i32 = 4;
 
     //add username
-    for bytes in username.as_bytes() {
-        startup_message_body.push(*bytes);
-        content_length += 1;
+    for bytes in query.as_bytes() {
+        query_vec_body.push(*bytes);
+        query_length += 1;
     }
 
     //add null terminator after user string
-    startup_message_body.push(0x00);
-    content_length += 1;
-
-    //add 'key' for database
-    for bytes in "database".as_bytes() {
-        startup_message_body.push(*bytes);
-        content_length += 1;
-    }
-
-    //add null terminator after database key
-    startup_message_body.push(0x00);
-    content_length += 1;
-
-    //add database
-    for bytes in database.as_bytes() {
-        startup_message_body.push(*bytes);
-        content_length += 1;
-    }
-
-    //add null terminator after user string
-    startup_message_body.push(0x00);
-    content_length += 1;
-
-    //add null terminator after end of startup message
-    startup_message_body.push(0x00);
-    content_length += 1;
-    
-    //add content length
-    for bytes in content_length.to_be_bytes() {
-        startup_message.push(bytes);
-    }
-    
-    //merge vectors
-    for bytes in startup_message_body {
-        startup_message.push(bytes);
-    }
-
-    //println!("{:?}", startup_message);
-    //println!("{}", content_length);
-
-    //send startup message to db server
-    stream.write_all(&startup_message).unwrap();
-
-    //create buf reader for server reply
-    let mut buf_reader = BufReader::new(&stream);
-
-    //create vector to hold initial ascii char 1byte of reply and content length 4bytes
-    let mut response_code_length: Vec<u8> = vec![0; 9];
-
-    //read from stream into initial response
-    buf_reader.read_exact(&mut response_code_length).unwrap(); 
-    println!("{:?}", response_code_length);
-
-    //turn ascii packet identifier into char
-    let packet_identifier = char::from_u32(response_code_length[0] as u32).unwrap();
-
-    println!("{}", packet_identifier);
-
-    //retrieve content length from packet
-    //create array holding the bytes of the content length
-    let mut content_length_bytes: [u8; 4] = [0; 4];
-
-    //position for array where the bytes of the content length are to be inserted
-    let mut array_pos = 0;
-
-    //loop through the inital packet an retrieve the individual bytes of the content length
-    for bytes in &mut response_code_length[1..5] {
-        content_length_bytes[array_pos] = *bytes;
-        array_pos += 1;
-    }
-
-    //array holding the bytes of the authentication method
-    let mut auth_method_bytes: [u8; 4] = [0; 4];
-
-    //reset array pos
-    array_pos = 0;
-
-    //loop through the inital packet an retrieve the individual bytes of the auth method
-    for bytes in &mut response_code_length[5..] {
-        auth_method_bytes[array_pos] = *bytes;
-        array_pos += 1;
-    }
-
-    //turn the bytes into an integer
-    let auth_method: i32 = i32::from_be_bytes(auth_method_bytes);
-    println!("{}", auth_method);
-
-    //check for authentication method
-    //in this case, its always 3, plain text password
-    if auth_method != 3 {
-       panic!("authentication method was anthing elese but 3, plain text"); 
-    }
-    
-    //send password
-     
-    let mut password_message: Vec<u8> = vec![];
-    let mut password_message_body: Vec<u8> = vec![];
-    let mut password_message_length: i32 = 5;
-
-
-    //add username
-    for bytes in password.as_bytes() {
-        password_message_body.push(*bytes);
-        password_message_length += 1;
-    }
-
-    //add null terminator after user string
-    password_message_body.push(0x00);
-    password_message_length += 1;
+    query_vec_body.push(0x00);
+    query_length += 1;
 
     //add char tag
-    password_message.push(b'p');
+    query_vec_head.push(b'Q');
+
 
     //add password message length
-    for bytes in password_message_length.to_be_bytes() {
-        password_message.push(bytes);
+    for bytes in query_length.to_be_bytes() {
+        query_vec_head.push(bytes);
     }
     
     //merge vectors
-    for bytes in password_message_body {
-        password_message.push(bytes);
+    for bytes in query_vec_body {
+        query_vec_head.push(bytes);
     }
 
-    println!("{:?}", password_message);
+    println!("{:?}", query_vec_head);
+    
+    write_to_db_stream(buf_reader.get_mut(), &query_vec_head);
 
-    //send startup message to db server
-    stream.write_all(&password_message).unwrap();
+    //retrieve query answer
+    loop {
+        //read the first five bytes to get message tag and length
+        let mut db_response_after_query: Vec<u8> = vec![0; 5];
+        read_from_db_stream(&mut buf_reader, &mut db_response_after_query);
+
+        println!("query head: {:?}", db_response_after_query);
+
+        //extract response length
+        let db_response_length: i32 = i32::from_be_bytes(db_response_after_query[1..5].try_into().unwrap());
+
+        let mut db_response_after_query_body: Vec<u8> = vec![0; db_response_length as usize - 4];
+        read_from_db_stream(&mut buf_reader, &mut db_response_after_query_body);
+        println!("query body: {:?}", db_response_after_query_body);
+
+        if db_response_after_query[0] == 68 {
+            println!("data row");
+            //extract number of columns
+            let number_of_columns_bytes = &db_response_after_query_body[0..2];
+            let number_of_columns: i16 = i16::from_be_bytes(number_of_columns_bytes.try_into().unwrap());
+
+            println!("number of columns: {}", number_of_columns);
+
+            //column value length
+            let column_value_length: i32 = i32::from_be_bytes(db_response_after_query_body[3..7].try_into().unwrap());
+            println!("column value length: {}", column_value_length);
+            
+            let end: usize = 7 + column_value_length as usize;
+            let value = &db_response_after_query_body[7..];
+            println!("value: {:?}", value);
+            let value = std::str::from_utf8(&value).unwrap();
+            println!("value: {}", value);
+
+        }
+
+        if db_response_after_query[0] == 90 {
+            break;
+        }
+
+    }
+    */
 
 }
