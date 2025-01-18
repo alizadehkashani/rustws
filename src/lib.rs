@@ -102,6 +102,7 @@ pub struct DatabaseConnection {
 }
 
 impl DatabaseConnection {
+    //---public----
     pub fn new (ip: &str, port: u16, user: &str, password: &str, database: &str, id: usize) -> DatabaseConnection {
 
         let stream = TcpStream::connect((ip, port)).unwrap(); 
@@ -115,11 +116,19 @@ impl DatabaseConnection {
 
         DatabaseConnection { id, reader } 
     }
+    
+    pub fn query(&mut self, query: &str) {
+        Self::send_query(&mut self.reader, &query);
+        Self::read_query_response(&mut self.reader);
 
+    }
+    
+
+    //---private
     //write to database stream
     fn write_to_db_stream (stream: &mut TcpStream, message: &Vec<u8>) {
         stream.write_all(message).unwrap();
-        
+            
     }
 
     //read from database stream
@@ -311,5 +320,123 @@ impl DatabaseConnection {
         }
 
     }
+    
+    fn send_query (reader: &mut BufReader<TcpStream>, query: &str) {
+        
+        let mut query_vec: Vec<u8> = vec![];
+        let query_length: i32 = 5 + query.len() as i32;
 
+        //add char tag
+        query_vec.push(b'Q');
+        
+        //add length of message to vector in bytes
+        Self::add_i32_as_be_bytes_to_vec(&query_length, &mut query_vec); 
+
+        //add query to vector as bytes
+        Self::add_str_as_bytes_to_vec(&query, &mut query_vec);
+
+        //add null terminator after user string
+        query_vec.push(0x00);
+        
+        //send query to tcp stream
+        Self::write_to_db_stream(reader.get_mut(), &query_vec);
+
+    }
+
+    fn read_query_response (reader: &mut BufReader<TcpStream>) {
+        //read row description
+        let mut row_description_head: Vec<u8> = vec![0; 5];
+        Self::read_from_db_stream(reader, &mut row_description_head);
+        //make sure, that the response is a row desciption
+        assert_eq!(row_description_head[0], 84, "response does not match a row desciption");
+        //get the length of the message
+        let row_description_length: i32 = i32::from_be_bytes(row_description_head[1..].try_into().unwrap());
+
+        //create vector big enough to hold the rest of the message
+        let mut row_description_body: Vec<u8> = vec![0; row_description_length as usize - 4];
+        //read from stream
+        Self::read_from_db_stream(reader, &mut row_description_body);
+        
+        //read next message, its either command complete ,a datarow or empty query
+        //67 'C' is command complete
+        //68 'D' is datarow
+        //73 'I' is empty query
+        loop {
+            //create vector to hold the head information of the response message
+            //1 byte identifyer, 4 bytes message length
+            let mut response_head: Vec<u8> = vec![0; 5];
+            Self::read_from_db_stream(reader, &mut response_head);
+            println!{"response head: {:?}", response_head};
+            let response_length: i32 = i32::from_be_bytes(response_head[1..].try_into().unwrap());
+            println!{"response length: {}", response_length};
+
+            //check if the response matches expected messages
+            assert!(matches!(response_head[0], 67 | 68 | 73));
+
+            let packet_identifier = char::from_u32(response_head[0] as u32).unwrap();
+
+            match  packet_identifier {
+                //datarow
+                'D' => {
+                    let mut number_of_columns: Vec<u8> = vec![0; 2];
+                    Self::read_from_db_stream(reader, &mut number_of_columns);
+                    let number_of_columns: i16 = i16::from_be_bytes(number_of_columns[0..].try_into().unwrap());
+                    println!{"number of columns: {}", number_of_columns};
+
+                    for i in 0..number_of_columns {
+                        println!("i = {i}");
+                        //get the length of the value (4 bytes)
+                        let mut value_length: Vec<u8> = vec![0; 4];
+                        Self::read_from_db_stream(reader, &mut value_length);
+                        let value_length: i32 = i32::from_be_bytes(value_length[0..].try_into().unwrap());
+                        
+                        //get the value
+                        let mut value: Vec<u8> = vec![0; value_length as usize];
+                        Self::read_from_db_stream(reader, &mut value);
+                        
+                        let value_string =  std::str::from_utf8(&value[0..]).unwrap();
+                        println!("value: {value_string}");
+                    }
+                },
+                'C' => {
+                    println!("query complete");
+
+                    //get the value
+                    let mut command_tag: Vec<u8> = vec![0; response_length as usize - 4];
+                    Self::read_from_db_stream(reader, &mut command_tag);
+                    let command_tag_string = std::str::from_utf8(&command_tag[..]).unwrap();
+                    println!("command string: {command_tag_string}");
+                    break;
+                },
+                'I' => {
+                        println!("query empty");
+                        break;
+                },
+                _ => {
+                        break;   
+                },
+            }
+
+
+        }
+
+        //check if db is ready for another query
+        //create vector to hold the head information of the response message
+        //1 byte identifyer, 4 bytes message length
+        let mut ready_command: Vec<u8> = vec![0; 6];
+        Self::read_from_db_stream(reader, &mut ready_command);
+        println!{"ready command head: {:?}", ready_command};
+
+        //check if the response matches expected messages
+        //90 = 'Z' ReadyForQuery
+        assert_eq!(ready_command[0], 90);
+        //check if db connection is in status idle
+        //73 = 'I'
+        assert_eq!(ready_command[5], 73);
+
+    }
+
+    fn read_row (reader: &mut BufReader<TcpStream>) {
+
+    }
 }

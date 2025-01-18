@@ -13,7 +13,9 @@ use webserver::DatabaseConnection;
 fn main() {
     println!("Server started");
     //db_query();
-    DatabaseConnection::new("127.0.0.1", 5432, "smgadmin", "admin", "memeoff", 0);
+    let mut dbcon = DatabaseConnection::new("127.0.0.1", 5432, "smgadmin", "admin", "memeoff", 0);
+    dbcon.query("SELECT * FROM users WHERE id = '0'");
+    dbcon.query("SELECT * FROM users WHERE id = '1'");
     //DatabaseConnection::new("127.0.0.1", 5432, "smgadmin", "admin", "memeoff", 1);
     //DatabaseConnection::new("127.0.0.1", 5432, "smgadmin", "admin", "memeoff", 2);
     //DatabaseConnection::new("127.0.0.1", 5432, "smgadmin", "admin", "memeoff", 3);
