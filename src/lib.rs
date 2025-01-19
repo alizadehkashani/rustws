@@ -5,6 +5,7 @@ use std::{
     io::Read,
     net::TcpStream,
     thread,
+    collections::HashMap,
 };
 
 pub struct ThreadPool {
@@ -356,76 +357,50 @@ impl DatabaseConnection {
         let mut row_description_body: Vec<u8> = vec![0; row_description_length as usize - 4];
         //read from stream
         Self::read_from_db_stream(reader, &mut row_description_body);
-        
-        //read next message, its either command complete ,a datarow or empty query
-        //67 'C' is command complete
-        //68 'D' is datarow
-        //73 'I' is empty query
-        loop {
-            //create vector to hold the head information of the response message
-            //1 byte identifyer, 4 bytes message length
-            let mut response_head: Vec<u8> = vec![0; 5];
-            Self::read_from_db_stream(reader, &mut response_head);
-            println!{"response head: {:?}", response_head};
-            let response_length: i32 = i32::from_be_bytes(response_head[1..].try_into().unwrap());
-            println!{"response length: {}", response_length};
 
-            //check if the response matches expected messages
-            assert!(matches!(response_head[0], 67 | 68 | 73));
+        //get the number of fields
+        let number_of_fields: i16 = i16::from_be_bytes(row_description_body[..2].try_into().unwrap());
+        println!("number of fields: {}",number_of_fields);
 
-            let packet_identifier = char::from_u32(response_head[0] as u32).unwrap();
-
-            match  packet_identifier {
-                //datarow
-                'D' => {
-                    let mut number_of_columns: Vec<u8> = vec![0; 2];
-                    Self::read_from_db_stream(reader, &mut number_of_columns);
-                    let number_of_columns: i16 = i16::from_be_bytes(number_of_columns[0..].try_into().unwrap());
-                    println!{"number of columns: {}", number_of_columns};
-
-                    for i in 0..number_of_columns {
-                        println!("i = {i}");
-                        //get the length of the value (4 bytes)
-                        let mut value_length: Vec<u8> = vec![0; 4];
-                        Self::read_from_db_stream(reader, &mut value_length);
-                        let value_length: i32 = i32::from_be_bytes(value_length[0..].try_into().unwrap());
-                        
-                        //get the value
-                        let mut value: Vec<u8> = vec![0; value_length as usize];
-                        Self::read_from_db_stream(reader, &mut value);
-                        
-                        let value_string =  std::str::from_utf8(&value[0..]).unwrap();
-                        println!("value: {value_string}");
-                    }
-                },
-                'C' => {
-                    println!("query complete");
-
-                    //get the value
-                    let mut command_tag: Vec<u8> = vec![0; response_length as usize - 4];
-                    Self::read_from_db_stream(reader, &mut command_tag);
-                    let command_tag_string = std::str::from_utf8(&command_tag[..]).unwrap();
-                    println!("command string: {command_tag_string}");
+        //set array position to beginning for first value string
+        let mut array_pos = 2;
+        //position where the field name starts
+        let mut value_start_pos: usize = 2;
+        //create a vector holding die individual field names
+        let mut field_names: Vec<String> = Vec::new();
+        //loop through fields
+        for field_number in 0..number_of_fields as usize {
+            loop {
+                if array_pos > 100 {
                     break;
-                },
-                'I' => {
-                        println!("query empty");
+                }
+                let current_char = char::from_u32(row_description_body[array_pos] as u32).unwrap();
+                match row_description_body[array_pos] {
+                    0x00 => {
+                        let field_name =  std::str::from_utf8(&row_description_body[value_start_pos..array_pos]).unwrap();
+                        field_names.push(field_name.to_string());
+                        array_pos += 19;
+                        value_start_pos = array_pos;
                         break;
-                },
-                _ => {
-                        break;   
-                },
+                    },
+                    _ => {
+                        array_pos += 1;
+                    },
+                }
             }
-
-
         }
+        
+        //create vector holding the individual rows
+        let mut rows: Vec<HashMap<String, String>> = Vec::new();
+        //read next message, its either command complete ,a datarow or empty query
+        Self::read_rows(reader, &field_names, &mut rows);
+        println!("{:?}", rows);
 
-        //check if db is ready for another query
+        //check query result and if db is ready for another query
         //create vector to hold the head information of the response message
         //1 byte identifyer, 4 bytes message length
         let mut ready_command: Vec<u8> = vec![0; 6];
         Self::read_from_db_stream(reader, &mut ready_command);
-        println!{"ready command head: {:?}", ready_command};
 
         //check if the response matches expected messages
         //90 = 'Z' ReadyForQuery
@@ -436,7 +411,77 @@ impl DatabaseConnection {
 
     }
 
-    fn read_row (reader: &mut BufReader<TcpStream>) {
+    fn read_rows (reader: &mut BufReader<TcpStream>, field_names: &Vec<String>, rows: &mut Vec<HashMap<String, String>>) {
+        println!{"current field names vector: {:?}", field_names};
+        loop {
+            //67 'C' is command complete
+            //68 'D' is datarow
+            //73 'I' is empty query
 
+            //create vector to hold the head information of the response message
+            //1 byte identifyer, 4 bytes message length
+            let mut response_head: Vec<u8> = vec![0; 5];
+            Self::read_from_db_stream(reader, &mut response_head);
+            let response_length: i32 = i32::from_be_bytes(response_head[1..].try_into().unwrap());
+
+            //check if the response matches expected messages
+            assert!(matches!(response_head[0], 67 | 68 | 73));
+
+
+            let packet_identifier = char::from_u32(response_head[0] as u32).unwrap();
+            match  packet_identifier {
+                //datarow
+                'D' => {
+                    let mut number_of_columns: Vec<u8> = vec![0; 2];
+                    Self::read_from_db_stream(reader, &mut number_of_columns);
+                    let number_of_columns: i16 = i16::from_be_bytes(number_of_columns[0..].try_into().unwrap());
+                    //check if the number of columns matches the number in die field desc. message
+                    assert_eq!(number_of_columns as usize, field_names.len(), "number of columns does not match");
+
+                    //create hash map, holding the values
+                    let mut values = HashMap::new();
+
+                    //loop through the columns
+                    for i in 0..number_of_columns {
+                        //get the length of the value (4 bytes)
+                        let mut value_length: Vec<u8> = vec![0; 4];
+                        Self::read_from_db_stream(reader, &mut value_length);
+                        let value_length: i32 = i32::from_be_bytes(value_length[0..].try_into().unwrap());
+
+                        //get the value
+                        let mut value: Vec<u8> = vec![0; value_length as usize];
+                        Self::read_from_db_stream(reader, &mut value);
+
+                        let value_string =  std::str::from_utf8(&value[0..]).unwrap();
+                        println!("{}", value_string);
+
+                        //insert the value with the desciption into the hash map
+                        values.insert(field_names[i as usize].to_string(), value_string.to_string());
+
+                        println!("{:?}", values);
+
+                    }
+
+                    //add the hash map to the rows vector
+                    rows.push(values);
+                },
+                'C' => {
+
+                    //get the value
+                    let mut command_tag: Vec<u8> = vec![0; response_length as usize - 4];
+                    Self::read_from_db_stream(reader, &mut command_tag);
+                    let command_tag_string = std::str::from_utf8(&command_tag[..]).unwrap();
+                    break;
+                },
+                'I' => {
+                    println!("query empty");
+                    break;
+                },
+                _ => {
+                    break;   
+                },
+
+            }
+        }
     }
 }
