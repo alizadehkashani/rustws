@@ -346,21 +346,34 @@ impl DatabaseConnection {
 
     fn read_query_response (reader: &mut BufReader<TcpStream>) {
         //read row description
-        let mut row_description_head: Vec<u8> = vec![0; 5];
-        Self::read_from_db_stream(reader, &mut row_description_head);
-        //make sure, that the response is a row desciption
-        assert_eq!(row_description_head[0], 84, "response does not match a row desciption");
+        let mut query_response_head: Vec<u8> = vec![0; 5];
+        Self::read_from_db_stream(reader, &mut query_response_head);
         //get the length of the message
-        let row_description_length: i32 = i32::from_be_bytes(row_description_head[1..].try_into().unwrap());
+        let query_response_length: i32 = i32::from_be_bytes(query_response_head[1..].try_into().unwrap());
+
+        //make sure, that the response is a row desciption
+        //or error
+        assert!(matches!(query_response_head[0], 69 | 84));
+
+        
+
+        //if error read error
+        //and exit out of function
+        if query_response_head[0] == 69 {
+            //if the response is an error, read the error
+            Self::read_error(reader, query_response_length);
+            //after reading the error, check if the db is ready for a new query
+            Self::read_ready_command(reader);
+            return;
+        }
 
         //create vector big enough to hold the rest of the message
-        let mut row_description_body: Vec<u8> = vec![0; row_description_length as usize - 4];
+        let mut row_description_body: Vec<u8> = vec![0; query_response_length as usize - 4];
         //read from stream
         Self::read_from_db_stream(reader, &mut row_description_body);
 
         //get the number of fields
         let number_of_fields: i16 = i16::from_be_bytes(row_description_body[..2].try_into().unwrap());
-        println!("number of fields: {}",number_of_fields);
 
         //set array position to beginning for first value string
         let mut array_pos = 2;
@@ -396,23 +409,13 @@ impl DatabaseConnection {
         Self::read_rows(reader, &field_names, &mut rows);
         println!("{:?}", rows);
 
-        //check query result and if db is ready for another query
-        //create vector to hold the head information of the response message
-        //1 byte identifyer, 4 bytes message length
-        let mut ready_command: Vec<u8> = vec![0; 6];
-        Self::read_from_db_stream(reader, &mut ready_command);
+        //after successfull query, read the ready for new query command
+        Self::read_ready_command(reader);
 
-        //check if the response matches expected messages
-        //90 = 'Z' ReadyForQuery
-        assert_eq!(ready_command[0], 90);
-        //check if db connection is in status idle
-        //73 = 'I'
-        assert_eq!(ready_command[5], 73);
 
     }
 
     fn read_rows (reader: &mut BufReader<TcpStream>, field_names: &Vec<String>, rows: &mut Vec<HashMap<String, String>>) {
-        println!{"current field names vector: {:?}", field_names};
         loop {
             //67 'C' is command complete
             //68 'D' is datarow
@@ -452,13 +455,11 @@ impl DatabaseConnection {
                         let mut value: Vec<u8> = vec![0; value_length as usize];
                         Self::read_from_db_stream(reader, &mut value);
 
+                        //turn the individual byres into a string
                         let value_string =  std::str::from_utf8(&value[0..]).unwrap();
-                        println!("{}", value_string);
 
                         //insert the value with the desciption into the hash map
                         values.insert(field_names[i as usize].to_string(), value_string.to_string());
-
-                        println!("{:?}", values);
 
                     }
 
@@ -483,5 +484,29 @@ impl DatabaseConnection {
 
             }
         }
+    }
+
+    fn read_ready_command (reader: &mut BufReader<TcpStream>) {
+        //check query result and if db is ready for another query
+        //create vector to hold the head information of the response message
+        //1 byte identifyer, 4 bytes message length
+        let mut ready_command: Vec<u8> = vec![0; 6];
+        Self::read_from_db_stream(reader, &mut ready_command);
+
+        //check if the response matches expected messages
+        //90 = 'Z' ReadyForQuery
+        assert_eq!(ready_command[0], 90);
+        //check if db connection is in status idle
+        //73 = 'I'
+        assert_eq!(ready_command[5], 73);
+    }
+
+    fn read_error (reader: &mut BufReader<TcpStream>, error_length: i32) {
+        println!("error");
+        //read the error message
+        let mut error_message: Vec<u8> = vec![0; error_length as usize - 4];
+        Self::read_from_db_stream(reader, &mut error_message);
+        
+
     }
 }

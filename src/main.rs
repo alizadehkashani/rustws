@@ -15,10 +15,15 @@ fn main() {
     //db_query();
     let mut dbcon = DatabaseConnection::new("127.0.0.1", 5432, "smgadmin", "admin", "memeoff", 0);
     //TODO try sending sql statment with error in it
-    dbcon.query("SELECT * FROM users");
+    //dbcon.query("SELECT * FROM users");
+    //dbcon.query("SELECT * FROM users where id = '2'");
     //dbcon.query("SELECT * FROM users WHERE id = '0'");
+    //dbcon.query("SELECT * FROM users WHERE id = '0'");
+    dbcon.query("INSERT INTO users (id, username, password) VALUES ('0', 'jasmin', 'jasmin')");
+    dbcon.query("SELECT * FROM users where id = '2'");
     //dbcon.query("SELECT * FROM users WHERE id = '1'");
-    //DatabaseConnection::new("127.0.0.1", 5432, "smgadmin", "admin", "memeoff", 1);
+    let mut dbcon0 = DatabaseConnection::new("127.0.0.1", 5432, "smgadmin", "admin", "memeoff", 1);
+    dbcon0.query("SELECT * FROM users");
     //DatabaseConnection::new("127.0.0.1", 5432, "smgadmin", "admin", "memeoff", 2);
     //DatabaseConnection::new("127.0.0.1", 5432, "smgadmin", "admin", "memeoff", 3);
 
