@@ -1,11 +1,11 @@
 use std::{
-    sync::{mpsc, Arc, Mutex},
+    sync::{mpsc, Arc, Mutex, Condvar},
     io::BufReader,
     io::Write,
     io::Read,
     net::TcpStream,
     thread,
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
 };
 
 pub struct ThreadPool {
@@ -90,10 +90,42 @@ impl Worker {
 type Job = Box<dyn FnOnce() + Send + 'static>;
 
 pub struct DatabaseConnectionPool {
+    connections: Arc<Mutex<VecDeque<DatabaseConnection>>>,
+    condvar: Arc<Condvar>,
 
 }
 
 impl DatabaseConnectionPool {
+    pub fn new (size: usize, ip: &str, port: u16, user: &str, password: &str, database: &str) -> DatabaseConnectionPool {
+        let mut connections = VecDeque::new();
+        for i in 0..size {
+            connections.push_back(DatabaseConnection::new(ip, port, user, password, database, i));
+        }
+        
+        DatabaseConnectionPool{ 
+            connections: Arc::new(Mutex::new(connections)),
+            condvar: Arc::new(Condvar::new())
+        }
+    }
+
+    pub fn get_connection (&self) -> Option<DatabaseConnection> {
+        let mut connections = self.connections.lock().unwrap();
+
+        while connections.is_empty() {
+            println!("tried to get db connection, but its empty");
+            connections = self.condvar.wait(connections).unwrap();
+        }
+
+        connections.pop_front()
+    }
+
+    pub fn release_connection (&self, connection: DatabaseConnection) {
+        let mut connections = self.connections.lock().unwrap();
+
+        connections.push_back(connection);
+
+        self.condvar.notify_one();
+    }
 
 }
 
@@ -376,18 +408,24 @@ impl DatabaseConnection {
         let number_of_fields: i16 = i16::from_be_bytes(row_description_body[..2].try_into().unwrap());
 
         //set array position to beginning for first value string
-        let mut array_pos = 2;
+        let mut array_pos: usize = 2;
         //position where the field name starts
         let mut value_start_pos: usize = 2;
         //create a vector holding die individual field names
         let mut field_names: Vec<String> = Vec::new();
         //loop through fields
-        for field_number in 0..number_of_fields as usize {
+        for _field_number in 0..number_of_fields as usize {
+
             loop {
-                if array_pos > 100 {
+                //check if the current array position is larger than the actual message
+                if array_pos > query_response_length as usize {
                     break;
                 }
-                let current_char = char::from_u32(row_description_body[array_pos] as u32).unwrap();
+
+                //check if the current character is a null terminator
+                //if no, advance one character
+                //if yes, read the field name and move the position beyond the additional
+                //information bytes
                 match row_description_body[array_pos] {
                     0x00 => {
                         let field_name =  std::str::from_utf8(&row_description_body[value_start_pos..array_pos]).unwrap();
@@ -407,7 +445,6 @@ impl DatabaseConnection {
         let mut rows: Vec<HashMap<String, String>> = Vec::new();
         //read next message, its either command complete ,a datarow or empty query
         Self::read_rows(reader, &field_names, &mut rows);
-        println!("{:?}", rows);
 
         //after successfull query, read the ready for new query command
         Self::read_ready_command(reader);
@@ -471,7 +508,7 @@ impl DatabaseConnection {
                     //get the value
                     let mut command_tag: Vec<u8> = vec![0; response_length as usize - 4];
                     Self::read_from_db_stream(reader, &mut command_tag);
-                    let command_tag_string = std::str::from_utf8(&command_tag[..]).unwrap();
+                    let _command_tag_string = std::str::from_utf8(&command_tag[..]).unwrap();
                     break;
                 },
                 'I' => {
