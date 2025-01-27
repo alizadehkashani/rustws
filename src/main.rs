@@ -1,5 +1,6 @@
 use std::{
     fs,
+    fs::{File},
     io::{prelude::*, BufReader},
     net::{TcpListener, TcpStream},
     thread,
@@ -139,12 +140,27 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
           
     } else {
 
+        if &request_line[..] == "GET /favicon.ico HTTP/1.1" {
+            println!("fav icon get");
+            let mut favicon_content = Vec::new();
+            let mut file = File::open("favicon.png").unwrap();
+            file.read_to_end(&mut favicon_content).unwrap();
+            let response = format!(
+                "HTTP/1.1 200 OK\r\nContent-Type: image/png/r/nContent-Length: {}\r\n\r\n",
+                favicon_content.len()
+            );
+            stream.write_all(response.as_bytes()).unwrap();
+            stream.write_all(&favicon_content).unwrap();
+
+            return;
+        }
+
         let (status_line, filename) = match &request_line[..] {
             "GET / HTTP/1.1" => ("HTTP/1.1 200 OK", "hello.html"),
             "GET /sleep HTTP/1.1" => {
                 thread::sleep(Duration::from_secs(5));
                 ("HTTP/1.1 200 OK", "hello.html")
-            }
+            },
             _ => ("HTTP/1.1 200 OK", "404.html")
 
         };
