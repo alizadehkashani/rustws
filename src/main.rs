@@ -17,7 +17,7 @@ fn main() {
     println!("Server started");
 
     let database_connections = Arc::new(DatabaseConnectionPool::new(
-        4, //number of connections
+        2, //number of connections
         "127.0.0.1", //ip to database
         5432, //port to database
         "smgadmin", //user name
@@ -27,7 +27,7 @@ fn main() {
 
 
     let listener = TcpListener::bind("212.132.120.118:7878").unwrap();
-    let threadpool = ThreadPool::new(1);
+    let threadpool = ThreadPool::new(4);
 
     
     println!("after pool creation");
@@ -56,10 +56,9 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
 
     buf_reader.read_line(&mut request_line).unwrap();
 
+    //if the stream does not send a correct request line, then stop handling the connetion
     if request_line.is_empty() {
         println!("---------request line was empty");
-        buf_reader.read_line(&mut request_line).unwrap();
-        println!("{}", request_line);
         return;
     }
 

@@ -109,21 +109,27 @@ impl DatabaseConnectionPool {
     }
 
     pub fn get_connection (&self) -> Option<DatabaseConnection> {
+        //get lock on connections of the pool
         let mut connections = self.connections.lock().unwrap();
 
+        //if there are no connections, block the thread
         while connections.is_empty() {
             println!("tried to get db connection, but its empty");
             connections = self.condvar.wait(connections).unwrap();
         }
 
+        //get the first connection from the pool
         connections.pop_front()
     }
 
     pub fn release_connection (&self, connection: DatabaseConnection) {
+        //get lock on connections
         let mut connections = self.connections.lock().unwrap();
 
+        //but the used connection at the back of the connetion pool
         connections.push_back(connection);
 
+        //notify one waiting thread, that there is a new connection available
         self.condvar.notify_one();
     }
 
