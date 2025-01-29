@@ -11,13 +11,12 @@ use std::{
 use webserver::ThreadPool;
 use webserver::DatabaseConnectionPool;
 use webserver::DatabaseConnection;
+use webserver::json_encode;
 
 
 fn main() {
-    println!("Server started");
-
-    let database_connections = Arc::new(DatabaseConnectionPool::new(
-        2, //number of connections
+    println!("Server started"); let database_connections = Arc::new(DatabaseConnectionPool::new( 
+        4, //number of connections 
         "127.0.0.1", //ip to database
         5432, //port to database
         "smgadmin", //user name
@@ -25,11 +24,17 @@ fn main() {
         "memeoff" //database
     ));
 
+    //let mut database_connection = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
+    //let data = database_connection.query("SELECT * FROM users");
+    //println!("data base response: {:?}", data);
+    //database_connections.release_connection(database_connection);
+
+    //let json = json_encode(&data);
+
 
     let listener = TcpListener::bind("212.132.120.118:7878").unwrap();
     let threadpool = ThreadPool::new(4);
 
-    
     println!("after pool creation");
 
     for stream in listener.incoming() {
@@ -46,8 +51,9 @@ fn main() {
 fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseConnectionPool>) {
     
     let mut database_connection = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
-    database_connection.query("SELECT * FROM users");
-    database_connections.release_connection(database_connection);
+    let db_data = database_connection.query("SELECT * FROM users where id = '1'");
+    let json = json_encode(&db_data);
+    println!("{}", json);
 
     println!("new connection");
     let mut buf_reader = BufReader::new(&stream);
@@ -127,11 +133,12 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
 
         let status_line = "HTTP/1.1 200 OK";
 
-        let contents = "{\"user\":\"ramin\"}";
-        let length = contents.chars().count();
+        //let json = "{\"user\":\"ramin\"}";
+        let json = json.trim();
+        let length = json.chars().count();
 
         let response = 
-            format!("{status_line}\r\nContent-Length: {length}\r\nContent-Type: application/json\r\n\r\n{contents}");
+            format!("{status_line}\r\nContent-Length: {length}\r\nContent-Type: application/json\r\n\r\n{json}");
 
         stream.write_all(response.as_bytes()).unwrap();
 

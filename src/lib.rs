@@ -8,6 +8,69 @@ use std::{
     collections::{HashMap, VecDeque},
 };
 
+pub fn json_encode (data: &Vec<HashMap<String, String>>) -> String {
+    let mut json = String::new();
+
+    //number of rows in the query
+    let number_of_rows = data.len();
+    //variable to count the number of  rows
+    let mut row_number = 1;
+
+    //if there are multiple rows
+    if number_of_rows > 1 {
+        json.push_str("[");
+    }
+
+    //loop through rows
+    for row in data {
+
+        //add '{' to string for row start
+        json.push('{');
+
+        //number of keys in the row
+        let number_of_keys = row.keys().len();
+        //variable to count the keys
+        let mut key_number = 1;
+
+        for key in row.keys() {
+
+            json.push('"');
+            json.push_str(key);
+            json.push('"');
+            json.push_str(": ");
+
+            json.push('"');
+            json.push_str(row.get(key).unwrap());
+            json.push('"');
+
+            //check, if there are still keys comming
+            if key_number < number_of_keys {
+                json.push_str(", ");
+            }
+
+            key_number += 1;
+
+        }
+
+        //add '}' to string for row end
+        json.push('}');
+
+        //check, if there are still rows comming
+        if row_number < number_of_rows {
+            json.push_str(", ");
+        }
+
+        row_number += 1;
+    }
+    
+    //if there are multiple rows
+    if number_of_rows > 1 {
+        json.push_str("]");
+    }
+
+    json
+}
+
 pub struct ThreadPool {
     workers: Vec<Worker>,
     sender: Option<mpsc::Sender<Job>>,
@@ -156,10 +219,14 @@ impl DatabaseConnection {
         DatabaseConnection { id, reader } 
     }
     
-    pub fn query(&mut self, query: &str) {
+    pub fn query(&mut self, query: &str) -> Vec<HashMap<String, String>> {
+        //send query to database
         Self::send_query(&mut self.reader, &query);
-        Self::read_query_response(&mut self.reader);
+        //put response of database into variable
+        let data = Self::read_query_response(&mut self.reader);
 
+        //return the variable
+        return data;
     }
     
 
@@ -382,7 +449,11 @@ impl DatabaseConnection {
 
     }
 
-    fn read_query_response (reader: &mut BufReader<TcpStream>) {
+    fn read_query_response (reader: &mut BufReader<TcpStream>) -> Vec<HashMap<String, String>> {
+
+        //create vector holding the individual rows
+        let mut rows: Vec<HashMap<String, String>> = Vec::new();
+
         //read row description
         let mut query_response_head: Vec<u8> = vec![0; 5];
         Self::read_from_db_stream(reader, &mut query_response_head);
@@ -393,8 +464,6 @@ impl DatabaseConnection {
         //or error
         assert!(matches!(query_response_head[0], 69 | 84));
 
-        
-
         //if error read error
         //and exit out of function
         if query_response_head[0] == 69 {
@@ -402,7 +471,7 @@ impl DatabaseConnection {
             Self::read_error(reader, query_response_length);
             //after reading the error, check if the db is ready for a new query
             Self::read_ready_command(reader);
-            return;
+            return rows;
         }
 
         //create vector big enough to hold the rest of the message
@@ -447,14 +516,14 @@ impl DatabaseConnection {
             }
         }
         
-        //create vector holding the individual rows
-        let mut rows: Vec<HashMap<String, String>> = Vec::new();
         //read next message, its either command complete ,a datarow or empty query
         Self::read_rows(reader, &field_names, &mut rows);
 
         //after successfull query, read the ready for new query command
         Self::read_ready_command(reader);
 
+
+        return rows;
 
     }
 
@@ -493,6 +562,8 @@ impl DatabaseConnection {
                         let mut value_length: Vec<u8> = vec![0; 4];
                         Self::read_from_db_stream(reader, &mut value_length);
                         let value_length: i32 = i32::from_be_bytes(value_length[0..].try_into().unwrap());
+
+                        println!("{}", value_length);
 
                         //get the value
                         let mut value: Vec<u8> = vec![0; value_length as usize];
