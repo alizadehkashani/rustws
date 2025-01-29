@@ -52,8 +52,8 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
     
     let mut database_connection = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
     let db_data = database_connection.query("SELECT * FROM users where id = '1'");
-    let json = json_encode(&db_data);
-    println!("{}", json);
+    //let json = json_encode(&db_data);
+    //println!("{}", json);
 
     println!("new connection");
     let mut buf_reader = BufReader::new(&stream);
@@ -133,8 +133,8 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
 
         let status_line = "HTTP/1.1 200 OK";
 
-        //let json = "{\"user\":\"ramin\"}";
-        let json = json.trim();
+        let json = "{\"user\":\"ramin\"}";
+        //let json = json.trim();
         let length = json.chars().count();
 
         let response = 

@@ -219,7 +219,7 @@ impl DatabaseConnection {
         DatabaseConnection { id, reader } 
     }
     
-    pub fn query(&mut self, query: &str) -> Vec<HashMap<String, String>> {
+    pub fn query(&mut self, query: &str) -> Vec<HashMap<String, Option<String>>> {
         //send query to database
         Self::send_query(&mut self.reader, &query);
         //put response of database into variable
@@ -449,10 +449,10 @@ impl DatabaseConnection {
 
     }
 
-    fn read_query_response (reader: &mut BufReader<TcpStream>) -> Vec<HashMap<String, String>> {
+    fn read_query_response (reader: &mut BufReader<TcpStream>) -> Vec<HashMap<String, Option<String>>> {
 
         //create vector holding the individual rows
-        let mut rows: Vec<HashMap<String, String>> = Vec::new();
+        let mut rows: Vec<HashMap<String, Option<String>>> = Vec::new();
 
         //read row description
         let mut query_response_head: Vec<u8> = vec![0; 5];
@@ -516,7 +516,7 @@ impl DatabaseConnection {
             }
         }
         
-        //read next message, its either command complete ,a datarow or empty query
+        //read next message, its either command complete, a datarow or empty query
         Self::read_rows(reader, &field_names, &mut rows);
 
         //after successfull query, read the ready for new query command
@@ -527,7 +527,7 @@ impl DatabaseConnection {
 
     }
 
-    fn read_rows (reader: &mut BufReader<TcpStream>, field_names: &Vec<String>, rows: &mut Vec<HashMap<String, String>>) {
+fn read_rows (reader: &mut BufReader<TcpStream>, field_names: &Vec<String>, rows: &mut Vec<HashMap<String, Option<String>>>) {
         loop {
             //67 'C' is command complete
             //68 'D' is datarow
@@ -565,15 +565,31 @@ impl DatabaseConnection {
 
                         println!("{}", value_length);
 
-                        //get the value
-                        let mut value: Vec<u8> = vec![0; value_length as usize];
-                        Self::read_from_db_stream(reader, &mut value);
+                        //let value_option: Option<String>;
 
-                        //turn the individual byres into a string
-                        let value_string =  std::str::from_utf8(&value[0..]).unwrap();
+                        let value_option: Option<String> = match value_length {
+                            -1 => {
+                                //let value_option: Option<String> = None;
+                                None
+
+                            },
+                            _ => {
+                                //get the value
+                                let mut value: Vec<u8> = vec![0; value_length as usize];
+                                Self::read_from_db_stream(reader, &mut value);
+
+                                //turn the individual byres into a string
+                                let value_string =  std::str::from_utf8(&value[0..]).unwrap();
+
+                                //let value_option: Option<String> = Some(value_string.to_string());
+                                Some(value_string.to_string())
+
+                            }
+                        };
+
 
                         //insert the value with the desciption into the hash map
-                        values.insert(field_names[i as usize].to_string(), value_string.to_string());
+                        values.insert(field_names[i as usize].to_string(), value_option);
 
                     }
 
