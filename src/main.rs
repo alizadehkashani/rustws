@@ -24,10 +24,10 @@ fn main() {
         "memeoff" //database
     ));
 
-    //let mut database_connection = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
-    //let data = database_connection.query("SELECT * FROM users");
+    let mut database_connection = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
+    let data = database_connection.query("SELECT * FROM users");
     //println!("data base response: {:?}", data);
-    //database_connections.release_connection(database_connection);
+    database_connections.release_connection(database_connection);
 
     //let json = json_encode(&data);
 

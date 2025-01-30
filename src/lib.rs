@@ -8,6 +8,17 @@ use std::{
     collections::{HashMap, VecDeque},
 };
 
+struct DatabaseRowDescription {
+    name: String,
+    table_oid: i32,
+    column_number: i16,
+    type_oid: i32,
+    type_size: i16,
+    type_add_info: i32,
+    type_send_method: i16
+
+}
+
 pub fn json_encode (data: &Vec<HashMap<String, String>>) -> String {
     let mut json = String::new();
 
@@ -451,8 +462,6 @@ impl DatabaseConnection {
 
     fn read_query_response (reader: &mut BufReader<TcpStream>) -> Vec<HashMap<String, Option<String>>> {
 
-        //create vector holding the individual rows
-        let mut rows: Vec<HashMap<String, Option<String>>> = Vec::new();
 
         //read row description
         let mut query_response_head: Vec<u8> = vec![0; 5];
@@ -463,6 +472,9 @@ impl DatabaseConnection {
         //make sure, that the response is a row desciption
         //or error
         assert!(matches!(query_response_head[0], 69 | 84));
+
+        //create vector holding the individual rows
+        let mut rows: Vec<HashMap<String, Option<String>>> = Vec::new();
 
         //if error read error
         //and exit out of function
@@ -486,14 +498,16 @@ impl DatabaseConnection {
         let mut array_pos: usize = 2;
         //position where the field name starts
         let mut value_start_pos: usize = 2;
-        //create a vector holding die individual field names
-        let mut field_names: Vec<String> = Vec::new();
+        //create a vector holding die individual field descriptions
+        let mut row_descriptions: Vec<DatabaseRowDescription> = Vec::new();
+
         //loop through fields
         for _field_number in 0..number_of_fields as usize {
 
             loop {
                 //check if the current array position is larger than the actual message
                 if array_pos > query_response_length as usize {
+                    println!("no null terminator was found?");
                     break;
                 }
 
@@ -503,9 +517,76 @@ impl DatabaseConnection {
                 //information bytes
                 match row_description_body[array_pos] {
                     0x00 => {
-                        let field_name =  std::str::from_utf8(&row_description_body[value_start_pos..array_pos]).unwrap();
-                        field_names.push(field_name.to_string());
-                        array_pos += 19;
+                        //get the field description from the stream which is in the vector
+                        let name = std::str::from_utf8(
+                            &row_description_body[value_start_pos..array_pos]
+                        ).unwrap().to_string();
+
+                        //skip the null terminator
+                        array_pos += 1;
+
+                        //4 bytes int32 table oid
+                        let table_oid = i32::from_be_bytes(
+                            row_description_body[array_pos..array_pos + 4]
+                                .try_into()
+                                .unwrap()
+                        ); 
+                        array_pos += 4;
+
+                        //2 bytes column number, starting at 1
+                        let column_number = i16::from_be_bytes(
+                            row_description_body[array_pos..array_pos + 2]
+                                .try_into()
+                                .unwrap()
+                        ); 
+                        array_pos += 2;
+
+                        //4 bytes data type oid
+                        let type_oid = i32::from_be_bytes(
+                            row_description_body[array_pos..array_pos + 4]
+                                .try_into()
+                                .unwrap()
+                        ); 
+                        array_pos += 4;
+
+                        //2 bytes data type size, example int 4 bytes, -1 for text as its variable
+                        let type_size = i16::from_be_bytes(
+                            row_description_body[array_pos..array_pos + 2]
+                                .try_into()
+                                .unwrap()
+                        ); 
+                        array_pos += 2;
+
+                        //4 bytes additional type info
+                        let type_add_info = i32::from_be_bytes(
+                            row_description_body[array_pos..array_pos + 4]
+                                .try_into()
+                                .unwrap()
+                        ); 
+                        array_pos += 4;
+
+                        //2 bytes code how data should be send, text or binary
+                        let type_send_method = i16::from_be_bytes(
+                            row_description_body[array_pos..array_pos + 2]
+                                .try_into()
+                                .unwrap()
+                        ); 
+                        array_pos += 2;
+                        
+                        println!("push");
+                        row_descriptions.push(
+                            DatabaseRowDescription {
+                                name: name,
+                                table_oid: table_oid,
+                                column_number: column_number,
+                                type_oid: type_oid,
+                                type_size: type_size,
+                                type_add_info: type_add_info,
+                                type_send_method: type_send_method
+
+                            }
+                        );
+
                         value_start_pos = array_pos;
                         break;
                     },
@@ -515,9 +596,12 @@ impl DatabaseConnection {
                 }
             }
         }
-        
+        for row in &row_descriptions {
+            println!("{}", row.name);
+        }
+
         //read next message, its either command complete, a datarow or empty query
-        Self::read_rows(reader, &field_names, &mut rows);
+        Self::read_rows(reader, row_descriptions, &mut rows);
 
         //after successfull query, read the ready for new query command
         Self::read_ready_command(reader);
@@ -527,7 +611,7 @@ impl DatabaseConnection {
 
     }
 
-fn read_rows (reader: &mut BufReader<TcpStream>, field_names: &Vec<String>, rows: &mut Vec<HashMap<String, Option<String>>>) {
+fn read_rows (reader: &mut BufReader<TcpStream>, row_descriptions: Vec<DatabaseRowDescription>, rows: &mut Vec<HashMap<String, Option<String>>>) {
         loop {
             //67 'C' is command complete
             //68 'D' is datarow
@@ -551,7 +635,8 @@ fn read_rows (reader: &mut BufReader<TcpStream>, field_names: &Vec<String>, rows
                     Self::read_from_db_stream(reader, &mut number_of_columns);
                     let number_of_columns: i16 = i16::from_be_bytes(number_of_columns[0..].try_into().unwrap());
                     //check if the number of columns matches the number in die field desc. message
-                    assert_eq!(number_of_columns as usize, field_names.len(), "number of columns does not match");
+                    //TODO check from the field info data
+                    //assert_eq!(number_of_columns as usize, field_names.len(), "number of columns does not match");
 
                     //create hash map, holding the values
                     let mut values = HashMap::new();
@@ -563,13 +648,10 @@ fn read_rows (reader: &mut BufReader<TcpStream>, field_names: &Vec<String>, rows
                         Self::read_from_db_stream(reader, &mut value_length);
                         let value_length: i32 = i32::from_be_bytes(value_length[0..].try_into().unwrap());
 
-                        println!("{}", value_length);
-
-                        //let value_option: Option<String>;
-
+                        //check if the value is a null value
+                        //in case of null value, the length will be -1
                         let value_option: Option<String> = match value_length {
                             -1 => {
-                                //let value_option: Option<String> = None;
                                 None
 
                             },
@@ -587,9 +669,11 @@ fn read_rows (reader: &mut BufReader<TcpStream>, field_names: &Vec<String>, rows
                             }
                         };
 
+                        //get field description
+                        //let field_description = fields_info[i as usize].get("description").unwrap();
 
                         //insert the value with the desciption into the hash map
-                        values.insert(field_names[i as usize].to_string(), value_option);
+                        values.insert(String::from("hi"), value_option);
 
                     }
 
