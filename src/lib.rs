@@ -8,15 +8,19 @@ use std::{
     collections::{HashMap, VecDeque},
 };
 
-struct DatabaseRowDescription {
+pub struct DatabaseRowDescription {
     name: String,
     table_oid: i32,
     column_number: i16,
     type_oid: i32,
     type_size: i16,
     type_add_info: i32,
-    type_send_method: i16
+    type_send_method: i16,
+}
 
+pub enum DatabaseValue {
+    integer(i32),
+    varchar(String),
 }
 
 pub fn json_encode (data: &Vec<HashMap<String, String>>) -> String {
@@ -230,7 +234,7 @@ impl DatabaseConnection {
         DatabaseConnection { id, reader } 
     }
     
-    pub fn query(&mut self, query: &str) -> Vec<HashMap<String, Option<String>>> {
+    pub fn query(&mut self, query: &str) -> Vec<HashMap<String, Option<DatabaseValue>>> {
         //send query to database
         Self::send_query(&mut self.reader, &query);
         //put response of database into variable
@@ -460,7 +464,7 @@ impl DatabaseConnection {
 
     }
 
-    fn read_query_response (reader: &mut BufReader<TcpStream>) -> Vec<HashMap<String, Option<String>>> {
+    fn read_query_response (reader: &mut BufReader<TcpStream>) -> Vec<HashMap<String, Option<DatabaseValue>>> {
 
 
         //read row description
@@ -474,7 +478,7 @@ impl DatabaseConnection {
         assert!(matches!(query_response_head[0], 69 | 84));
 
         //create vector holding the individual rows
-        let mut rows: Vec<HashMap<String, Option<String>>> = Vec::new();
+        let mut rows: Vec<HashMap<String, Option<DatabaseValue>>> = Vec::new();
 
         //if error read error
         //and exit out of function
@@ -573,7 +577,6 @@ impl DatabaseConnection {
                         ); 
                         array_pos += 2;
                         
-                        println!("push");
                         row_descriptions.push(
                             DatabaseRowDescription {
                                 name: name,
@@ -596,22 +599,22 @@ impl DatabaseConnection {
                 }
             }
         }
-        for row in &row_descriptions {
-            println!("{}", row.name);
-        }
-
+        
         //read next message, its either command complete, a datarow or empty query
         Self::read_rows(reader, row_descriptions, &mut rows);
 
         //after successfull query, read the ready for new query command
         Self::read_ready_command(reader);
 
-
         return rows;
 
     }
 
-fn read_rows (reader: &mut BufReader<TcpStream>, row_descriptions: Vec<DatabaseRowDescription>, rows: &mut Vec<HashMap<String, Option<String>>>) {
+fn read_rows (
+        reader: &mut BufReader<TcpStream>, 
+        row_descriptions: Vec<DatabaseRowDescription>, 
+        rows: &mut Vec<HashMap<String, Option<DatabaseValue>>>
+    ) {
         loop {
             //67 'C' is command complete
             //68 'D' is datarow
@@ -633,24 +636,24 @@ fn read_rows (reader: &mut BufReader<TcpStream>, row_descriptions: Vec<DatabaseR
                 'D' => {
                     let mut number_of_columns: Vec<u8> = vec![0; 2];
                     Self::read_from_db_stream(reader, &mut number_of_columns);
-                    let number_of_columns: i16 = i16::from_be_bytes(number_of_columns[0..].try_into().unwrap());
-                    //check if the number of columns matches the number in die field desc. message
-                    //TODO check from the field info data
-                    //assert_eq!(number_of_columns as usize, field_names.len(), "number of columns does not match");
-
+                    let number_of_columns: i16 = i16::from_be_bytes(number_of_columns[0..]
+                        .try_into()
+                        .unwrap());
                     //create hash map, holding the values
                     let mut values = HashMap::new();
 
                     //loop through the columns
-                    for i in 0..number_of_columns {
+                    for i in 0..number_of_columns as usize {
                         //get the length of the value (4 bytes)
                         let mut value_length: Vec<u8> = vec![0; 4];
                         Self::read_from_db_stream(reader, &mut value_length);
-                        let value_length: i32 = i32::from_be_bytes(value_length[0..].try_into().unwrap());
+                        let value_length: i32 = i32::from_be_bytes(value_length[0..]
+                            .try_into()
+                            .unwrap());
 
                         //check if the value is a null value
                         //in case of null value, the length will be -1
-                        let value_option: Option<String> = match value_length {
+                        let value_option: Option<DatabaseValue> = match value_length {
                             -1 => {
                                 None
 
@@ -660,12 +663,65 @@ fn read_rows (reader: &mut BufReader<TcpStream>, row_descriptions: Vec<DatabaseR
                                 let mut value: Vec<u8> = vec![0; value_length as usize];
                                 Self::read_from_db_stream(reader, &mut value);
 
+
+                                //handle the value of the row depening on what kind of type the
+                                //field is
+                                match row_descriptions[i].type_oid {
+                                    23 => {//23 = integer
+                                        println!("value length: {}", value_length);
+                                        println!("type length: {}", row_descriptions[i].type_size); 
+
+                                        //turn the individual bytes into a string
+                                        let value = std::str::from_utf8(&value[0..])
+                                                .unwrap()
+                                                .to_string();
+
+                                        //turn the string into an integer
+                                        let value = DatabaseValue::integer(
+                                            value.parse::<i32>().unwrap()
+                                        );
+
+                                        //create an option
+                                        let value_option: Option<DatabaseValue> = Some(value);
+
+                                        //insert the value into the hashmap
+                                        values.insert(
+                                            row_descriptions[i].name.clone(), 
+                                            value_option
+                                        );
+
+                                    },
+                                    1043 => {//1043 = varchar
+                                        //turn the individual bytes into a string
+                                        let value =  DatabaseValue::varchar(
+                                            std::str::from_utf8(&value[0..])
+                                                .unwrap()
+                                                .to_string()
+                                        );
+
+                                        //put the string into an option
+                                        let value_option: Option<DatabaseValue> = Some(value);
+
+                                        //add the option to the hashmap
+                                        values.insert(
+                                            row_descriptions[i].name.clone(), 
+                                            value_option
+                                        );
+                                        
+                                    },
+                                    _ =>  {
+                                        panic!("encountered database type oid which is not defined");
+                                    },
+                                };
+
+
                                 //turn the individual byres into a string
-                                let value_string =  std::str::from_utf8(&value[0..]).unwrap();
+                                //let value_string =  std::str::from_utf8(&value[0..]).unwrap();
 
                                 //let value_option: Option<String> = Some(value_string.to_string());
-                                Some(value_string.to_string())
+                                //Some(value_string.to_string())
 
+                                None
                             }
                         };
 
