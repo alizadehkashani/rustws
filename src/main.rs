@@ -24,12 +24,14 @@ fn main() {
         "memeoff" //database
     ));
 
+    /*
     let mut database_connection = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
     let data = database_connection.query("SELECT * FROM users");
-    //println!("data base response: {:?}", data);
     database_connections.release_connection(database_connection);
 
-    //let json = json_encode(&data);
+    let json = json_encode(&data);
+    println!("json: {}", json);
+    */
 
 
     let listener = TcpListener::bind("212.132.120.118:7878").unwrap();
@@ -51,9 +53,8 @@ fn main() {
 fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseConnectionPool>) {
     
     let mut database_connection = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
-    let db_data = database_connection.query("SELECT * FROM users where id = '1'");
-    //let json = json_encode(&db_data);
-    //println!("{}", json);
+    let db_data = database_connection.query("SELECT * FROM users");
+    let json = json_encode(&db_data);
 
     println!("new connection");
     let mut buf_reader = BufReader::new(&stream);
@@ -133,7 +134,7 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
 
         let status_line = "HTTP/1.1 200 OK";
 
-        let json = "{\"user\":\"ramin\"}";
+        //let json = "{\"user\":\"ramin\"}";
         //let json = json.trim();
         let length = json.chars().count();
 

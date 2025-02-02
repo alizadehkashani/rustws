@@ -23,11 +23,12 @@ pub enum DatabaseValue {
     varchar(String),
 }
 
-pub fn json_encode (data: &Vec<HashMap<String, String>>) -> String {
+pub fn json_encode (data: &Vec<HashMap<String, Option<DatabaseValue>>>) -> String {
     let mut json = String::new();
 
     //number of rows in the query
     let number_of_rows = data.len();
+
     //variable to count the number of  rows
     let mut row_number = 1;
 
@@ -44,6 +45,7 @@ pub fn json_encode (data: &Vec<HashMap<String, String>>) -> String {
 
         //number of keys in the row
         let number_of_keys = row.keys().len();
+
         //variable to count the keys
         let mut key_number = 1;
 
@@ -54,9 +56,27 @@ pub fn json_encode (data: &Vec<HashMap<String, String>>) -> String {
             json.push('"');
             json.push_str(": ");
 
-            json.push('"');
-            json.push_str(row.get(key).unwrap());
-            json.push('"');
+            match row.get(key).unwrap() {
+                None => {
+                    json.push_str("null");
+                },
+                Some(value) => {
+                    match value {
+                        DatabaseValue::integer(integer) => {
+                            json.push_str(&integer.to_string());
+                        },
+                        DatabaseValue::varchar(string) => {
+                            json.push('"');
+                            json.push_str(string);
+                            json.push('"');
+                        },
+                        _ => {
+                            panic!("encountered database value which was not defined");
+                        },
+
+                    }
+                },
+            }
 
             //check, if there are still keys comming
             if key_number < number_of_keys {
@@ -639,6 +659,7 @@ fn read_rows (
                     let number_of_columns: i16 = i16::from_be_bytes(number_of_columns[0..]
                         .try_into()
                         .unwrap());
+                    
                     //create hash map, holding the values
                     let mut values = HashMap::new();
 
@@ -664,6 +685,7 @@ fn read_rows (
 
                                 //handle the value of the row depening on what kind of type the
                                 //field is
+                                println!("type_oid: {}", row_descriptions[i].type_oid);
                                 match row_descriptions[i].type_oid {
                                     23 => {//23 = integer
 
