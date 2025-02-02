@@ -656,20 +656,16 @@ fn read_rows (
                         let value_option: Option<DatabaseValue> = match value_length {
                             -1 => {
                                 None
-
                             },
                             _ => {
                                 //get the value
                                 let mut value: Vec<u8> = vec![0; value_length as usize];
                                 Self::read_from_db_stream(reader, &mut value);
 
-
                                 //handle the value of the row depening on what kind of type the
                                 //field is
                                 match row_descriptions[i].type_oid {
                                     23 => {//23 = integer
-                                        println!("value length: {}", value_length);
-                                        println!("type length: {}", row_descriptions[i].type_size); 
 
                                         //turn the individual bytes into a string
                                         let value = std::str::from_utf8(&value[0..])
@@ -681,14 +677,7 @@ fn read_rows (
                                             value.parse::<i32>().unwrap()
                                         );
 
-                                        //create an option
-                                        let value_option: Option<DatabaseValue> = Some(value);
-
-                                        //insert the value into the hashmap
-                                        values.insert(
-                                            row_descriptions[i].name.clone(), 
-                                            value_option
-                                        );
+                                        Some(value)//put the value into an option
 
                                     },
                                     1043 => {//1043 = varchar
@@ -699,37 +688,19 @@ fn read_rows (
                                                 .to_string()
                                         );
 
-                                        //put the string into an option
-                                        let value_option: Option<DatabaseValue> = Some(value);
-
-                                        //add the option to the hashmap
-                                        values.insert(
-                                            row_descriptions[i].name.clone(), 
-                                            value_option
-                                        );
+                                        Some(value)//put the value into an option
                                         
                                     },
                                     _ =>  {
                                         panic!("encountered database type oid which is not defined");
+                                        None
                                     },
-                                };
-
-
-                                //turn the individual byres into a string
-                                //let value_string =  std::str::from_utf8(&value[0..]).unwrap();
-
-                                //let value_option: Option<String> = Some(value_string.to_string());
-                                //Some(value_string.to_string())
-
-                                None
+                                }
                             }
                         };
 
-                        //get field description
-                        //let field_description = fields_info[i as usize].get("description").unwrap();
-
                         //insert the value with the desciption into the hash map
-                        values.insert(String::from("hi"), value_option);
+                        values.insert(row_descriptions[i].name.clone(), value_option);
 
                     }
 
