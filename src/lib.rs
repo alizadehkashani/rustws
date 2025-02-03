@@ -630,7 +630,7 @@ impl DatabaseConnection {
 
     }
 
-fn read_rows (
+    fn read_rows (
         reader: &mut BufReader<TcpStream>, 
         row_descriptions: Vec<DatabaseRowDescription>, 
         rows: &mut Vec<HashMap<String, Option<DatabaseValue>>>
@@ -685,7 +685,6 @@ fn read_rows (
 
                                 //handle the value of the row depening on what kind of type the
                                 //field is
-                                println!("type_oid: {}", row_descriptions[i].type_oid);
                                 match row_descriptions[i].type_oid {
                                     23 => {//23 = integer
 

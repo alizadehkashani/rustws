@@ -56,7 +56,7 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
     let db_data = database_connection.query("SELECT * FROM users");
     let json = json_encode(&db_data);
 
-    println!("new connection");
+    println!("!!!!!!!!!!!!!!!!!!!!!!!!!!new connection");
     let mut buf_reader = BufReader::new(&stream);
 
     let mut request_line = String::new();
@@ -79,7 +79,30 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
     let mut request_line_split_iter = request_line.split_whitespace();
 
     let method = request_line_split_iter.next().unwrap();
-    let _path = request_line_split_iter.next().unwrap();
+    let path = request_line_split_iter.next().unwrap();
+    let mut path_split = path.split('?');
+
+    let path = match path_split.next() {
+        Some(path) => path.to_string(),
+        None => {
+            panic!("http header line does not seem to be correct");
+            String::from("")
+        }
+    };
+
+    let get_string: Option<String> = match path_split.next() {
+        Some(string) => Some(string.to_string()),
+        None => None,
+    };
+
+    println!("{}", path);
+
+    if let Some(string) = get_string {
+        println!("{}", string);
+    } else {
+        println!("no get string");
+    }
+
     let _protocol = request_line_split_iter.next().unwrap();
 
 
@@ -105,7 +128,7 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
         }
 
 
-        //println!("{}", header_line);
+        println!("{}", header_line);
     }
 
     let mut body_hash = HashMap::new();
