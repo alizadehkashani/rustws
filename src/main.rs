@@ -13,8 +13,13 @@ use webserver::DatabaseConnectionPool;
 use webserver::DatabaseConnection;
 use webserver::json_encode;
 
+//const ROOT: String = String::from("www");
+const ROOT: &str = "www";
+
 
 fn main() {
+
+    println!("root path: {}", ROOT);
     println!("Server started"); let database_connections = Arc::new(DatabaseConnectionPool::new( 
         4, //number of connections 
         "127.0.0.1", //ip to database
@@ -32,7 +37,6 @@ fn main() {
     let json = json_encode(&data);
     println!("json: {}", json);
     */
-
 
     let listener = TcpListener::bind("212.132.120.118:7878").unwrap();
     let threadpool = ThreadPool::new(4);
@@ -78,10 +82,15 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
     //split status line by space
     let mut request_line_split_iter = request_line.split_whitespace();
 
+    //extract the method from the http request
     let method = request_line_split_iter.next().unwrap();
+
+    //extract the path from the http request
     let path = request_line_split_iter.next().unwrap();
+    //split the path by '?' to extract any inormation from the path
     let mut path_split = path.split('?');
 
+    //check if the path is viable
     let path = match path_split.next() {
         Some(path) => path.to_string(),
         None => {
@@ -90,6 +99,9 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
         }
     };
 
+    //put everthing after the '?' into an option
+    //so its possible to differentiate 
+    //that there is not get string
     let get_string: Option<String> = match path_split.next() {
         Some(string) => Some(string.to_string()),
         None => None,
@@ -97,34 +109,43 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
 
     println!("{}", path);
 
+    //
     if let Some(string) = get_string {
         println!("{}", string);
     } else {
         println!("no get string");
     }
 
+    //put the protocol version into a variable
     let _protocol = request_line_split_iter.next().unwrap();
 
 
+    //variable to hold the content length of the body
     let mut content_length: usize = 0;
 
+    //loop through the lines of the header
+    //and extract the individual paramteres
     loop {
 
+        //create new empty string for the header line
         let mut header_line = String::new();
 
+        //read new line from the stream
         buf_reader.read_line(&mut header_line).unwrap();
 
+        //trim empty spaces from the line
         let header_line = header_line.trim();
 
+        // if the line is empty, break from the loop
+        // no more lines will be read
         if header_line.is_empty() {
-            //println!("empty");
             break;
         }
 
+        //check if the current line matches paramter
         if header_line.starts_with("Content-Length") {
             content_length = header_line.split_whitespace().nth(1).unwrap().parse().unwrap();
                    
-            //println!("content length is: {content_length}");
         }
 
 
