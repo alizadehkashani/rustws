@@ -61,6 +61,7 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
     let json = json_encode(&db_data);
 
     println!("!!!!!!!!!!!!!!!!!!!!!!!!!!new connection");
+    //create empty read to read stream into
     let mut buf_reader = BufReader::new(&stream);
 
     let mut request_line = String::new();
@@ -194,7 +195,9 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
         if &request_line[..] == "GET /favicon.ico HTTP/1.1" {
             println!("fav icon get");
             let mut favicon_content = Vec::new();
-            let mut file = File::open("favicon.png").unwrap();
+            let path_favicon = format!("{}/favicon.png", ROOT);
+            println!("path to favicon: {}", path_favicon);
+            let mut file = File::open(path_favicon).unwrap();
             file.read_to_end(&mut favicon_content).unwrap();
             let response = format!(
                 "HTTP/1.1 200 OK\r\nContent-Type: image/png/r/nContent-Length: {}\r\n\r\n",
