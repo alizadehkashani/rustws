@@ -227,6 +227,8 @@ impl DatabaseConnectionPool {
         //but the used connection at the back of the connetion pool
         connections.push_back(connection);
 
+        println!("connection released");
+
         //notify one waiting thread, that there is a new connection available
         self.condvar.notify_one();
     }

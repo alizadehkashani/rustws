@@ -59,6 +59,7 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
     let mut database_connection = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
     let db_data = database_connection.query("SELECT * FROM users");
     let json = json_encode(&db_data);
+    database_connections.release_connection(database_connection);
 
     println!("!!!!!!!!!!!!!!!!!!!!!!!!!!new connection");
     //create empty read to read stream into
@@ -108,9 +109,11 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
         None => None,
     };
 
+    //TEMP
     println!("{}", path);
 
-    //
+    //TEMP
+    //if there is a string, print it
     if let Some(string) = get_string {
         println!("{}", string);
     } else {
@@ -119,7 +122,6 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
 
     //put the protocol version into a variable
     let _protocol = request_line_split_iter.next().unwrap();
-
 
     //variable to hold the content length of the body
     let mut content_length: usize = 0;
