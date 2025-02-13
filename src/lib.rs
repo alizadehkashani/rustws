@@ -23,6 +23,27 @@ pub enum DatabaseValue {
     varchar(String),
 }
 
+pub fn convert_get_string (get_string: String) -> HashMap::<String, String> {
+    let mut get_string_hashmap = HashMap::new();
+    println!("{}", get_string);
+
+    for data_pair in get_string.split('&') {
+        println!("{}", data_pair);
+
+        let mut data_pair_split = data_pair.split('=');
+
+        let variable = data_pair_split.next().unwrap().to_string();
+        let value = data_pair_split.next().unwrap().to_string();
+
+        get_string_hashmap.insert(variable, value);
+
+    }
+
+    println!("{:?}", get_string_hashmap);
+
+    return get_string_hashmap;
+}
+
 pub fn json_encode (data: &Vec<HashMap<String, Option<DatabaseValue>>>) -> String {
     let mut json = String::new();
 

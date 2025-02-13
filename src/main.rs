@@ -12,6 +12,7 @@ use webserver::ThreadPool;
 use webserver::DatabaseConnectionPool;
 use webserver::DatabaseConnection;
 use webserver::json_encode;
+use webserver::convert_get_string;
 
 //const ROOT: String = String::from("www");
 const ROOT: &str = "www";
@@ -101,24 +102,31 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
         }
     };
 
-    //put everthing after the '?' into an option
-    //so its possible to differentiate 
-    //that there is not get string
-    let get_string: Option<String> = match path_split.next() {
-        Some(string) => Some(string.to_string()),
-        None => None,
-    };
+    let get_string: Option<String> = None;
+
+    //if the method is get, check if there is information in the url
+    if method == "GET" {
+        //put everthing after the '?' into an option
+        //so its possible to differentiate 
+        //that there is not get string
+        let get_string = match path_split.next() {
+            Some(string) => Some(string.to_string()),
+            None => None,
+        };
+
+        //TEMP
+        //if there is a string, print it
+        if let Some(string) = get_string {
+            convert_get_string(string);
+        } else {
+            println!("no get string");
+        }
+    }
+
 
     //TEMP
     println!("{}", path);
 
-    //TEMP
-    //if there is a string, print it
-    if let Some(string) = get_string {
-        println!("{}", string);
-    } else {
-        println!("no get string");
-    }
 
     //put the protocol version into a variable
     let _protocol = request_line_split_iter.next().unwrap();
