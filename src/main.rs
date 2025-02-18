@@ -123,7 +123,6 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
         }
     }
 
-
     //TEMP
     println!("{}", path);
 
@@ -166,13 +165,18 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
     let mut body_hash = HashMap::new();
 
     if method == "POST" {
-        //println!("post method used");
 
+        //create empty vector with the length of the content
         let mut body: Vec<u8> = vec![0; content_length];
 
+        //read content into vector
         buf_reader.read_exact(&mut body).unwrap(); 
 
+        //turn boty from bytes into a string
         let body = std::str::from_utf8(&body).unwrap();
+        println!("body string: {}", body);
+        //TODO turn json into hashmap
+        //
         let body_trim: &str = &body[1..body.len() - 1];
                 
         for item in body_trim.split(",") {
