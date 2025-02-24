@@ -1,6 +1,7 @@
 use std::{
     sync::{mpsc, Arc, Mutex, Condvar},
     io::BufReader,
+    io::BufRead,
     io::Write,
     io::Read,
     net::TcpStream,
@@ -18,16 +19,176 @@ pub struct DatabaseRowDescription {
     type_send_method: i16,
 }
 
+pub enum ContentType {
+    application_jons,
+}
+
+pub enum Method {
+    GET,
+    POST,
+    undefined,
+}
+
 pub enum DatabaseValue {
     integer(i32),
     varchar(String),
 }
 
-pub fn convert_get_string (get_string: String) -> HashMap::<String, String> {
-    let mut get_string_hashmap = HashMap::new();
-    println!("{}", get_string);
+pub struct HTTPRequest {
+    stream: TcpStream,
+    request_line: RequestLine,
+}
 
-    for data_pair in get_string.split('&') {
+pub struct RequestLine {
+    pub empty: bool,
+    pub method: Method,
+    pub path: String,
+    pub query_string: Option<String>,
+    pub protocol: String,
+}
+
+impl RequestLine {
+    pub fn empty () -> RequestLine {
+
+        let empty_request = RequestLine {
+            empty: true,
+            method: Method::undefined,
+            path: String::new(),
+            query_string: None,
+            protocol: String::new(),
+        };
+
+        empty_request
+
+    }
+}
+
+pub fn read_request_line (buf_reader: &mut BufReader<&TcpStream>) -> String {
+
+    //create new string for the request line
+    let mut request_line = String::new();
+
+    //read the line into the new string
+    buf_reader.read_line(&mut request_line).unwrap();
+
+    let request_line = request_line.trim().to_string();
+
+    request_line
+}
+
+pub fn parse_request_line (request_line: String) -> RequestLine {
+
+    //if the stream does not send a correct request line, then stop handling the connetion
+    if request_line.is_empty() {
+        println!("---------request line was empty");
+        return RequestLine::empty();
+    }
+
+    println!("function call parse_request_line: {:?}", request_line);
+
+    //split status line by space
+    let mut request_line_split_iter = request_line.split_whitespace();
+
+    //extract the method from the http request
+    let method = match request_line_split_iter.next().unwrap() {
+            "GET" => Method::GET,
+            "POST" => Method::POST,
+            _ => Method::undefined,
+    };
+
+    //extract the path from the http request
+    let path = request_line_split_iter.next().unwrap();
+
+    //split the path by '?' to extract any inormation from the path
+    let mut path_split = path.split('?');
+
+    //check if the path is viable
+    let path = match path_split.next() {
+        Some(path) => path.to_string(),
+        None => {
+            panic!("http header line does not seem to be correct");
+            String::from("")
+        }
+    };
+
+    //create new option for the additional information in the path
+    //option in case there is not additional information
+    let query_string: Option<String> = None;
+
+
+    if let Method::GET = method {
+        //put everthing after the '?' into an option
+        //so its possible to differentiate 
+        //that there is not get string
+        let query_string = match path_split.next() {
+            Some(string) => Some(convert_query_string(string.to_string())),
+            None => None,
+        };
+
+    }
+
+    //put the protocol version into a variable
+    let protocol = request_line_split_iter.next().unwrap().to_string();
+
+    let request_line_struc = RequestLine {
+        empty: false,
+        method: method,
+        path: path,
+        query_string: query_string,
+        protocol: protocol,
+    };
+
+    request_line_struc 
+
+}
+
+pub fn parse_http_headers (buf_reader: &mut BufReader<&TcpStream>) -> HashMap<String, String> {
+
+    //creat new hash map holding the headers
+    let mut headers_hash = HashMap::new();
+
+    //loop through the lines of the header
+    //and extract the individual paramteres
+    loop {
+
+        //create new empty string for the header line
+        let mut header_line = String::new();
+
+        //read new line from the stream
+        buf_reader.read_line(&mut header_line).unwrap();
+
+        //trim empty spaces from the line
+        let header_line = header_line.trim();
+
+        // if the line is empty, break from the loop
+        // no more lines will be read
+        if header_line.is_empty() {
+            break;
+        }
+
+        //split the line by ':' to get the description and value of the parameter
+        let mut header_line_split = header_line.split(':');
+
+        //put the description and value into variables
+        let header_description = header_line_split.next().unwrap().to_string();
+        let header_value = header_line_split.next().unwrap().to_string();
+
+        //insert the pair into the hashmap
+        headers_hash.insert(header_description, header_value);
+
+    }
+
+    println!("headers hash: {:?}", headers_hash);
+
+    //return the hash map from the function
+    headers_hash
+}
+
+pub fn convert_query_string (query_string: String) -> HashMap::<String, String> {
+    let mut query_string_hashmap = HashMap::new();
+    println!("{}", query_string);
+
+    for data_pair in query_string.split('&') {
         println!("{}", data_pair);
 
         let mut data_pair_split = data_pair.split('=');
@@ -35,13 +196,13 @@ pub fn convert_get_string (get_string: String) -> HashMap::<String, String> {
         let variable = data_pair_split.next().unwrap().to_string();
         let value = data_pair_split.next().unwrap().to_string();
 
-        get_string_hashmap.insert(variable, value);
+        query_string_hashmap.insert(variable, value);
 
     }
 
-    println!("{:?}", get_string_hashmap);
+    println!("{:?}", query_string_hashmap);
 
-    return get_string_hashmap;
+    return query_string_hashmap;
 }
 
 pub fn json_encode (data: &Vec<HashMap<String, Option<DatabaseValue>>>) -> String {

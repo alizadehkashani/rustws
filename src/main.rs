@@ -8,11 +8,7 @@ use std::{
     collections::HashMap,
     sync::Arc,
 };
-use webserver::ThreadPool;
-use webserver::DatabaseConnectionPool;
-use webserver::DatabaseConnection;
-use webserver::json_encode;
-use webserver::convert_get_string;
+use webserver::*;
 
 //const ROOT: String = String::from("www");
 const ROOT: &str = "www";
@@ -66,101 +62,26 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
     //create empty read to read stream into
     let mut buf_reader = BufReader::new(&stream);
 
-    let mut request_line = String::new();
+    let request_line = read_request_line(&mut buf_reader);
 
-    buf_reader.read_line(&mut request_line).unwrap();
+    //parse the request line
+    let request_line = parse_request_line(request_line);
 
-    //if the stream does not send a correct request line, then stop handling the connetion
-    if request_line.is_empty() {
-        println!("---------request line was empty");
+    //check if request line is empty
+    if request_line.empty {
+        println!("handle function says request line is empty");
         return;
     }
 
-    assert_ne!(request_line.is_empty(), true);
+    //parse the headers
+    parse_http_headers(&mut buf_reader);
 
-    let request_line = request_line.trim();
-
-    println!("{}", request_line);
-
-    //split status line by space
-    let mut request_line_split_iter = request_line.split_whitespace();
-
-    //extract the method from the http request
-    let method = request_line_split_iter.next().unwrap();
-
-    //extract the path from the http request
-    let path = request_line_split_iter.next().unwrap();
-    //split the path by '?' to extract any inormation from the path
-    let mut path_split = path.split('?');
-
-    //check if the path is viable
-    let path = match path_split.next() {
-        Some(path) => path.to_string(),
-        None => {
-            panic!("http header line does not seem to be correct");
-            String::from("")
-        }
-    };
-
-    let get_string: Option<String> = None;
-
-    //if the method is get, check if there is information in the url
-    if method == "GET" {
-        //put everthing after the '?' into an option
-        //so its possible to differentiate 
-        //that there is not get string
-        let get_string = match path_split.next() {
-            Some(string) => Some(string.to_string()),
-            None => None,
-        };
-
-        //TEMP
-        //if there is a string, print it
-        if let Some(string) = get_string {
-            convert_get_string(string);
-        } else {
-            println!("no get string");
-        }
-    }
-
-    //TEMP
-    println!("{}", path);
-
-
-    //put the protocol version into a variable
-    let _protocol = request_line_split_iter.next().unwrap();
-
+    /*
     //variable to hold the content length of the body
     let mut content_length: usize = 0;
 
-    //loop through the lines of the header
-    //and extract the individual paramteres
-    loop {
-
-        //create new empty string for the header line
-        let mut header_line = String::new();
-
-        //read new line from the stream
-        buf_reader.read_line(&mut header_line).unwrap();
-
-        //trim empty spaces from the line
-        let header_line = header_line.trim();
-
-        // if the line is empty, break from the loop
-        // no more lines will be read
-        if header_line.is_empty() {
-            break;
-        }
-
-        //check if the current line matches paramter
-        if header_line.starts_with("Content-Length") {
-            content_length = header_line.split_whitespace().nth(1).unwrap().parse().unwrap();
-                   
-        }
-
-
-        println!("{}", header_line);
-    }
+    //varible to hold the content type
+    let mut content_type = String::new();
 
     let mut body_hash = HashMap::new();
 
@@ -174,7 +95,9 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
 
         //turn boty from bytes into a string
         let body = std::str::from_utf8(&body).unwrap();
+
         println!("body string: {}", body);
+
         //TODO turn json into hashmap
         //
         let body_trim: &str = &body[1..body.len() - 1];
@@ -241,5 +164,6 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
 
         stream.write_all(response.as_bytes()).unwrap();
     }
+    */
 
 }
