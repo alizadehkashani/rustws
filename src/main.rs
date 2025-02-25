@@ -59,6 +59,7 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
     database_connections.release_connection(database_connection);
 
     println!("!!!!!!!!!!!!!!!!!!!!!!!!!!new connection");
+
     //create empty read to read stream into
     let mut buf_reader = BufReader::new(&stream);
 
@@ -73,8 +74,21 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
         return;
     }
 
-    //parse the headers
-    parse_http_headers(&mut buf_reader);
+    //read the headers
+    let http_headers = read_http_headers(&mut buf_reader);
+
+    let content_type = match http_headers.get("Content-Type") {
+        Some(ctype) => ctype.to_string(),
+        None => String::from("no content type defined"),
+    };
+
+    //if its a post request, check if there is a body
+    if let Method::POST = request_line.method {
+        println!("POST");
+        //TODO read body here, if available
+    }
+
+    println!("content type: {}", content_type);
 
     /*
     //variable to hold the content length of the body
@@ -87,32 +101,6 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
 
     if method == "POST" {
 
-        //create empty vector with the length of the content
-        let mut body: Vec<u8> = vec![0; content_length];
-
-        //read content into vector
-        buf_reader.read_exact(&mut body).unwrap(); 
-
-        //turn boty from bytes into a string
-        let body = std::str::from_utf8(&body).unwrap();
-
-        println!("body string: {}", body);
-
-        //TODO turn json into hashmap
-        //
-        let body_trim: &str = &body[1..body.len() - 1];
-                
-        for item in body_trim.split(",") {
-            let mut item_iter = item.split(":");
-            
-            let key = item_iter.next().unwrap();
-            let key_trim: &str = &key[1..key.len() - 1];
-
-            let value = item_iter.next().unwrap();
-            let value_trim: &str = &value[1..value.len() - 1];
-
-            body_hash.insert(key_trim, value_trim);
-        };
 
         let status_line = "HTTP/1.1 200 OK";
 
@@ -165,5 +153,14 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
         stream.write_all(response.as_bytes()).unwrap();
     }
     */
+
+    let status_line = "HTTP/1.1 200 OK";
+    let contents = fs::read_to_string("hello.html").unwrap();
+    let length = contents.len();
+
+    let response = 
+    format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
+
+    stream.write_all(response.as_bytes()).unwrap();
 
 }

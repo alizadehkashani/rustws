@@ -142,7 +142,7 @@ pub fn parse_request_line (request_line: String) -> RequestLine {
 
 }
 
-pub fn parse_http_headers (buf_reader: &mut BufReader<&TcpStream>) -> HashMap<String, String> {
+pub fn read_http_headers (buf_reader: &mut BufReader<&TcpStream>) -> HashMap<String, String> {
 
     //creat new hash map holding the headers
     let mut headers_hash = HashMap::new();
@@ -183,6 +183,48 @@ pub fn parse_http_headers (buf_reader: &mut BufReader<&TcpStream>) -> HashMap<St
     //return the hash map from the function
     headers_hash
 }
+
+pub fn read_http_body (
+    buf_reader: &mut BufReader<&TcpStream>, 
+    content_length: usize
+) -> HashMap<String, String> {
+
+    //create empty vector with the length of the content
+    let mut body: Vec<u8> = vec![0; content_length];
+
+    //read content into vector
+    buf_reader.read_exact(&mut body).unwrap(); 
+
+    //turn boty from bytes into a string
+    let body = std::str::from_utf8(&body).unwrap();
+
+    println!("body: {}", body);
+
+    parse_json_string(&body)
+}
+
+pub fn parse_json_string (json_string: &str) -> HashMap<String, String> {
+
+    let mut json_hash = HashMap::new();
+
+    //remove '{' and '}' from beginning and end
+    let json_trim: &str = &json_string[1..json_string.len() - 1];
+
+    for item in json_trim.split(",") {
+        let mut item_iter = item.split(":");
+
+        let key = item_iter.next().unwrap();
+        let key_trim: &str = &key[1..key.len() - 1];
+
+        let value = item_iter.next().unwrap();
+        let value_trim: &str = &value[1..value.len() - 1];
+
+        json_hash.insert(key_trim.to_string(), value_trim.to_string());
+    };
+
+    json_hash
+}
+
 
 pub fn convert_query_string (query_string: String) -> HashMap::<String, String> {
     let mut query_string_hashmap = HashMap::new();
