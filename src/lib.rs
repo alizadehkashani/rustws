@@ -171,7 +171,7 @@ pub fn read_http_headers (buf_reader: &mut BufReader<&TcpStream>) -> HashMap<Str
 
         //put the description and value into variables
         let header_description = header_line_split.next().unwrap().to_string();
-        let header_value = header_line_split.next().unwrap().to_string();
+        let header_value = header_line_split.next().unwrap().trim().to_string();
 
         //insert the pair into the hashmap
         headers_hash.insert(header_description, header_value);
@@ -187,7 +187,7 @@ pub fn read_http_headers (buf_reader: &mut BufReader<&TcpStream>) -> HashMap<Str
 pub fn read_http_body (
     buf_reader: &mut BufReader<&TcpStream>, 
     content_length: usize
-) -> HashMap<String, String> {
+) -> String {
 
     //create empty vector with the length of the content
     let mut body: Vec<u8> = vec![0; content_length];
@@ -198,9 +198,7 @@ pub fn read_http_body (
     //turn boty from bytes into a string
     let body = std::str::from_utf8(&body).unwrap();
 
-    println!("body: {}", body);
-
-    parse_json_string(&body)
+    body.to_string()
 }
 
 pub fn parse_json_string (json_string: &str) -> HashMap<String, String> {

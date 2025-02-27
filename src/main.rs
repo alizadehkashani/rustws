@@ -82,10 +82,24 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
         None => String::from("no content type defined"),
     };
 
+    //variable for body data
+    let body: String;
+
     //if its a post request, check if there is a body
     if let Method::POST = request_line.method {
         println!("POST");
+
         //TODO read body here, if available
+        let content_length: Option<usize> = match http_headers.get("Content-Length") {
+            Some(length) => Some(length.parse().unwrap()), //TODO handling, if parse fails
+            None => None,
+        };
+
+        if let Some(clength) = content_length {
+            println!("content length: {}", clength);
+            body = read_http_body(&mut buf_reader, clength);
+            println!("body: {}", body);
+        }
     }
 
     println!("content type: {}", content_type);
