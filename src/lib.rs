@@ -7,6 +7,7 @@ use std::{
     net::TcpStream,
     thread,
     collections::{HashMap, VecDeque},
+    fs,
 };
 
 pub struct DatabaseRowDescription {
@@ -73,7 +74,7 @@ pub fn read_request_line (buf_reader: &mut BufReader<&TcpStream>) -> String {
 
     let request_line = request_line.trim().to_string();
 
-    request_line
+        request_line
 }
 
 pub fn parse_request_line (request_line: String) -> RequestLine {
@@ -99,7 +100,7 @@ pub fn parse_request_line (request_line: String) -> RequestLine {
     //extract the path from the http request
     let path = request_line_split_iter.next().unwrap();
 
-    //split the path by '?' to extract any inormation from the path
+    //split the path by '?' to extract any information from the path
     let mut path_split = path.split('?');
 
     //check if the path is viable
@@ -114,7 +115,6 @@ pub fn parse_request_line (request_line: String) -> RequestLine {
     //create new option for the additional information in the path
     //option in case there is not additional information
     let query_string: Option<String> = None;
-
 
     if let Method::GET = method {
         //put everthing after the '?' into an option
@@ -199,6 +199,28 @@ pub fn read_http_body (
     let body = std::str::from_utf8(&body).unwrap();
 
     body.to_string()
+}
+
+pub fn send_http_response (mut stream: TcpStream) {
+    let contents = fs::read_to_string("hello.html");
+
+    match contents {
+        Ok(content) => {//the file has been found and read
+            println!("file gefunden");
+            let status_line = "HTTP/1.1 200 OK";
+
+            let length = content.len();
+
+            let response = 
+            format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{content}");
+
+            stream.write_all(response.as_bytes()).unwrap();
+        },
+        Err(error_message) => {//could not find file
+            println!("{}", error_message); 
+        },
+    }
+
 }
 
 pub fn parse_json_string (json_string: &str) -> HashMap<String, String> {

@@ -104,6 +104,10 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
 
     println!("content type: {}", content_type);
 
+    println!("path: {}", request_line.path);
+
+    send_http_response(stream);
+
     /*
     //variable to hold the content length of the body
     let mut content_length: usize = 0;
@@ -166,7 +170,6 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
 
         stream.write_all(response.as_bytes()).unwrap();
     }
-    */
 
     let status_line = "HTTP/1.1 200 OK";
     let contents = fs::read_to_string("hello.html").unwrap();
@@ -176,5 +179,6 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
     format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
 
     stream.write_all(response.as_bytes()).unwrap();
+    */
 
 }
