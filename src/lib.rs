@@ -143,15 +143,16 @@ pub fn parse_request_line (request_line: String) -> RequestLine {
 }
 
 pub fn parse_header_accept (head_string: &str) -> HashMap<String, String> {
+    //create empty hash map 
     let mut media_types = HashMap::new();
 
-    println!("??? parse header accept {}", head_string);
-
+    //split the string by ','
     let head_string_split = head_string.split(',');
 
+    //loop through the individual types
     for media_type in head_string_split {
-        println!("???type in split: {}", media_type);
 
+        //seperate the quality value
         let mut media_type_preference = media_type.split(';');
 
         //get the name of the media type
@@ -160,7 +161,7 @@ pub fn parse_header_accept (head_string: &str) -> HashMap<String, String> {
             None => String::from(""),
         };
         
-        //check if there is a preference for the media type
+        //check if there is a preference/quality value for the media type
         let preference = match media_type_preference.next() {
             //TODO value looks something like 'q=0.8'
             //if there is no preference availalbe, 1.0 is the default
@@ -172,9 +173,6 @@ pub fn parse_header_accept (head_string: &str) -> HashMap<String, String> {
             }, 
             None => String::from("1.0"),
         };
-
-        println!("???type: {}", media_type);
-        println!("???pref: {}", preference);
         
         //insert into hash map
         media_types.insert(media_type, preference);
@@ -182,6 +180,7 @@ pub fn parse_header_accept (head_string: &str) -> HashMap<String, String> {
         
     }
 
+    //return the media types
     media_types
     
 
