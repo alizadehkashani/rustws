@@ -98,14 +98,15 @@ fn handle_connection(stream: TcpStream, database_connections: Arc<DatabaseConnec
 
     //if its a post request, check if there is a body
     if let Method::POST = request_line.method {
-        println!("POST");
 
-        //TODO read body here, if available
+        //TODO next lines do not really make sense, could be reduced
+        //create option for content lengh
         let content_length: Option<usize> = match http_headers.get("Content-Length") {
             Some(length) => Some(length.parse().unwrap()), //TODO handling, if parse fails
             None => None,
         };
 
+        //read the content of the body of the post request
         if let Some(clength) = content_length {
             println!("content length: {}", clength);
             body = read_http_body(&mut buf_reader, clength);

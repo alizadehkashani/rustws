@@ -163,8 +163,13 @@ pub fn parse_header_accept (head_string: &str) -> HashMap<String, String> {
         //check if there is a preference for the media type
         let preference = match media_type_preference.next() {
             //TODO value looks something like 'q=0.8'
-            //split also by '=' to get the actual value
-            Some(preference) => preference.to_string(),
+            //if there is no preference availalbe, 1.0 is the default
+            Some(preference) => {
+                match preference.split('=').nth(2) {
+                    Some(qvalue) => qvalue.to_string(),
+                    None => String::from(""),
+                }
+            }, 
             None => String::from("1.0"),
         };
 
@@ -176,11 +181,6 @@ pub fn parse_header_accept (head_string: &str) -> HashMap<String, String> {
 
         
     }
-
-
-
-    //split by ,
-    //split by ;
 
     media_types
     
