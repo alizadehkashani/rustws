@@ -51,11 +51,11 @@ fn main() {
 
 }
 
-fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseConnectionPool>) {
+fn handle_connection(stream: TcpStream, database_connections: Arc<DatabaseConnectionPool>) {
     
     let mut database_connection = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
     let db_data = database_connection.query("SELECT * FROM users");
-    let json = json_encode(&db_data);
+    let _json = json_encode(&db_data);
     database_connections.release_connection(database_connection);
 
     println!("!!!!!!!!!!!!!!!!!!!!!!!!!!new connection");
@@ -76,6 +76,15 @@ fn handle_connection(mut stream: TcpStream, database_connections: Arc<DatabaseCo
 
     //read the headers
     let http_headers = read_http_headers(&mut buf_reader);
+
+    if http_headers.contains_key("Accept") {
+        println!("Accept exsists: ");
+        println!("Accept: {}", http_headers["Accept"]);
+
+        parse_header_accept(&http_headers["Accept"]);
+    }
+
+    //println!("{:?}", http_headers);
 
     let content_type = match http_headers.get("Content-Type") {
         Some(ctype) => ctype.to_string(),

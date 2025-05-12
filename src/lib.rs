@@ -21,18 +21,18 @@ pub struct DatabaseRowDescription {
 }
 
 pub enum ContentType {
-    application_jons,
+    ApplicationJson,
 }
 
 pub enum Method {
     GET,
     POST,
-    undefined,
+    Undefined,
 }
 
 pub enum DatabaseValue {
-    integer(i32),
-    varchar(String),
+    Integer(i32),
+    Varchar(String),
 }
 
 pub struct HTTPRequest {
@@ -53,7 +53,7 @@ impl RequestLine {
 
         let empty_request = RequestLine {
             empty: true,
-            method: Method::undefined,
+            method: Method::Undefined,
             path: String::new(),
             query_string: None,
             protocol: String::new(),
@@ -94,7 +94,7 @@ pub fn parse_request_line (request_line: String) -> RequestLine {
     let method = match request_line_split_iter.next().unwrap() {
             "GET" => Method::GET,
             "POST" => Method::POST,
-            _ => Method::undefined,
+            _ => Method::Undefined,
     };
 
     //extract the path from the http request
@@ -107,7 +107,7 @@ pub fn parse_request_line (request_line: String) -> RequestLine {
     let path = match path_split.next() {
         Some(path) => path.to_string(),
         None => {
-            panic!("http header line does not seem to be correct");
+            println!("http header line does not seem to be correct");
             String::from("")
         }
     };
@@ -120,7 +120,7 @@ pub fn parse_request_line (request_line: String) -> RequestLine {
         //put everthing after the '?' into an option
         //so its possible to differentiate 
         //that there is not get string
-        let query_string = match path_split.next() {
+        let _query_string = match path_split.next() {
             Some(string) => Some(convert_query_string(string.to_string())),
             None => None,
         };
@@ -139,6 +139,19 @@ pub fn parse_request_line (request_line: String) -> RequestLine {
     };
 
     request_line_struc 
+
+}
+
+pub fn parse_header_accept (head_string: &str) -> HashMap<String, String> {
+    let mut media_types = HashMap::new();
+
+    println!("??? parse header accept {}", head_string);
+
+    //split by ,
+    //split by ;
+
+    media_types
+    
 
 }
 
@@ -178,7 +191,6 @@ pub fn read_http_headers (buf_reader: &mut BufReader<&TcpStream>) -> HashMap<Str
 
     }
 
-    println!("headers hash: {:?}", headers_hash);
 
     //return the hash map from the function
     headers_hash
@@ -306,16 +318,13 @@ pub fn json_encode (data: &Vec<HashMap<String, Option<DatabaseValue>>>) -> Strin
                 },
                 Some(value) => {
                     match value {
-                        DatabaseValue::integer(integer) => {
+                        DatabaseValue::Integer(integer) => {
                             json.push_str(&integer.to_string());
                         },
-                        DatabaseValue::varchar(string) => {
+                        DatabaseValue::Varchar(string) => {
                             json.push('"');
                             json.push_str(string);
                             json.push('"');
-                        },
-                        _ => {
-                            panic!("encountered database value which was not defined");
                         },
 
                     }
@@ -940,7 +949,7 @@ impl DatabaseConnection {
                                                 .to_string();
 
                                         //turn the string into an integer
-                                        let value = DatabaseValue::integer(
+                                        let value = DatabaseValue::Integer(
                                             value.parse::<i32>().unwrap()
                                         );
 
@@ -949,7 +958,7 @@ impl DatabaseConnection {
                                     },
                                     1043 => {//1043 = varchar
                                         //turn the individual bytes into a string
-                                        let value =  DatabaseValue::varchar(
+                                        let value =  DatabaseValue::Varchar(
                                             std::str::from_utf8(&value[0..])
                                                 .unwrap()
                                                 .to_string()
@@ -959,7 +968,7 @@ impl DatabaseConnection {
                                         
                                     },
                                     _ =>  {
-                                        panic!("encountered database type oid which is not defined");
+                                        println!("encountered database type oid which is not defined");
                                         None
                                     },
                                 }
