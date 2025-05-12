@@ -78,10 +78,12 @@ fn handle_connection(stream: TcpStream, database_connections: Arc<DatabaseConnec
     let http_headers = read_http_headers(&mut buf_reader);
 
     if http_headers.contains_key("Accept") {
-        println!("Accept exsists: ");
-        println!("Accept: {}", http_headers["Accept"]);
+        //println!("Accept exsists: ");
+        //println!("Accept: {}", http_headers["Accept"]);
 
         parse_header_accept(&http_headers["Accept"]);
+
+        //println!("{:?}", parse_header_accept);
     }
 
     //println!("{:?}", http_headers);

@@ -147,6 +147,38 @@ pub fn parse_header_accept (head_string: &str) -> HashMap<String, String> {
 
     println!("??? parse header accept {}", head_string);
 
+    let head_string_split = head_string.split(',');
+
+    for media_type in head_string_split {
+        println!("???type in split: {}", media_type);
+
+        let mut media_type_preference = media_type.split(';');
+
+        //get the name of the media type
+        let media_type = match media_type_preference.next() {
+            Some(mtype) => mtype.to_string(),
+            None => String::from(""),
+        };
+        
+        //check if there is a preference for the media type
+        let preference = match media_type_preference.next() {
+            //TODO value looks something like 'q=0.8'
+            //split also by '=' to get the actual value
+            Some(preference) => preference.to_string(),
+            None => String::from("1.0"),
+        };
+
+        println!("???type: {}", media_type);
+        println!("???pref: {}", preference);
+        
+        //insert into hash map
+        media_types.insert(media_type, preference);
+
+        
+    }
+
+
+
     //split by ,
     //split by ;
 
