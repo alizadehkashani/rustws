@@ -10,19 +10,17 @@ use std::{
 };
 use webserver::*;
 
-//const ROOT: String = String::from("www");
-const ROOT: &str = "www";
-
+mod constants;
 
 fn main() {
 
-    println!("root path: {}", ROOT);
+    println!("root path: {}", constants::ROOT);
     println!("Server started"); let database_connections = Arc::new(DatabaseConnectionPool::new( 
         4, //number of connections 
         "127.0.0.1", //ip to database
         5432, //port to database
-        "smgadmin", //user name
-        "admin", //user password
+        "smgadmin", //user name databae
+        "admin", //user password database
         "memeoff" //database
     ));
 
@@ -55,6 +53,9 @@ fn handle_connection(stream: TcpStream, database_connections: Arc<DatabaseConnec
     
     let mut database_connection = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
     let db_data = database_connection.query("SELECT * FROM users");
+    //debug
+    println!("response from DB: {:?}", db_data[0]);
+    //debug
     let _json = json_encode(&db_data);
     database_connections.release_connection(database_connection);
 
@@ -77,14 +78,20 @@ fn handle_connection(stream: TcpStream, database_connections: Arc<DatabaseConnec
     //read the headers
     let http_headers = read_http_headers(&mut buf_reader);
 
+    //if the header contains information for the accept of media type
+    //parse the information
+    let header_accept = match http_headers.contains_key("Accept") {
+        true => Some(parse_header_accept(&http_headers["Accept"])),
+        false => None,
+
+    };
+
+    //DEBUG 
     if http_headers.contains_key("Accept") {
-
-        parse_header_accept(&http_headers["Accept"]);
-
-        //println!("{:?}", parse_header_accept);
+        //println!("{:?}", http_headers["Accept"]);
+        println!("{:?}", header_accept.unwrap());
     }
-
-    //println!("{:?}", http_headers);
+    //DEBUG 
 
     let content_type = match http_headers.get("Content-Type") {
         Some(ctype) => ctype.to_string(),
@@ -112,11 +119,17 @@ fn handle_connection(stream: TcpStream, database_connections: Arc<DatabaseConnec
         }
     }
 
-    println!("content type: {}", content_type);
+    let full_request = HTTPRequest {
+        stream: stream,
+        request_line: request_line 
+    };
 
-    println!("path: {}", request_line.path);
+    //DEBUG
+    //println!("content type: {}", content_type);
+    //println!("path: {}", request_line.path);
+    //DEBUG
 
-    send_http_response(stream);
+    send_http_response(full_request);
 
     /*
     //variable to hold the content length of the body

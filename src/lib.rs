@@ -10,6 +10,8 @@ use std::{
     fs,
 };
 
+mod constants;
+
 pub struct DatabaseRowDescription {
     name: String,
     table_oid: i32,
@@ -30,14 +32,15 @@ pub enum Method {
     Undefined,
 }
 
+#[derive(Debug)]
 pub enum DatabaseValue {
     Integer(i32),
     Varchar(String),
 }
 
 pub struct HTTPRequest {
-    stream: TcpStream,
-    request_line: RequestLine,
+    pub stream: TcpStream,
+    pub request_line: RequestLine,
 }
 
 pub struct RequestLine {
@@ -84,8 +87,6 @@ pub fn parse_request_line (request_line: String) -> RequestLine {
         println!("---------request line was empty");
         return RequestLine::empty();
     }
-
-    println!("function call parse_request_line: {:?}", request_line);
 
     //split status line by space
     let mut request_line_split_iter = request_line.split_whitespace();
@@ -163,10 +164,10 @@ pub fn parse_header_accept (head_string: &str) -> HashMap<String, String> {
         
         //check if there is a preference/quality value for the media type
         let preference = match media_type_preference.next() {
-            //TODO value looks something like 'q=0.8'
+            //value looks something like 'q=0.8'
             //if there is no preference availalbe, 1.0 is the default
             Some(preference) => {
-                match preference.split('=').nth(2) {
+                match preference.split('=').nth(1) {
                     Some(qvalue) => qvalue.to_string(),
                     None => String::from(""),
                 }
@@ -244,8 +245,23 @@ pub fn read_http_body (
     body.to_string()
 }
 
-pub fn send_http_response (mut stream: TcpStream) {
-    let contents = fs::read_to_string("hello.html");
+pub fn send_http_response (mut request: HTTPRequest) {
+
+    //debug
+    println!("file path: {}", request.request_line.path);
+    //debug
+    //
+
+    let path = match request.request_line.path.as_str() {
+        "/" => format!("{}{}", constants::ROOT, "index.hmtl"),
+        _ => [constants::ROOT, &request.request_line.path].concat(),
+    };
+
+    //debug
+    println!("file path after match: {}", path);
+    //debug
+
+    let contents = fs::read_to_string(path);
 
     match contents {
         Ok(content) => {//the file has been found and read
@@ -257,7 +273,7 @@ pub fn send_http_response (mut stream: TcpStream) {
             let response = 
             format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{content}");
 
-            stream.write_all(response.as_bytes()).unwrap();
+            request.stream.write_all(response.as_bytes()).unwrap();
         },
         Err(error_message) => {//could not find file
             println!("{}", error_message); 
@@ -291,10 +307,8 @@ pub fn parse_json_string (json_string: &str) -> HashMap<String, String> {
 
 pub fn convert_query_string (query_string: String) -> HashMap::<String, String> {
     let mut query_string_hashmap = HashMap::new();
-    println!("{}", query_string);
 
     for data_pair in query_string.split('&') {
-        println!("{}", data_pair);
 
         let mut data_pair_split = data_pair.split('=');
 
@@ -305,7 +319,6 @@ pub fn convert_query_string (query_string: String) -> HashMap::<String, String> 
 
     }
 
-    println!("{:?}", query_string_hashmap);
 
     return query_string_hashmap;
 }
@@ -645,7 +658,9 @@ impl DatabaseConnection {
             startup_message.push(bytes);
         }
 
+        //DEBUG
         //println!("startup message: {:?}", startup_message);
+        //DEBUG
 
         //send startup message to db server
         Self::write_to_db_stream(reader.get_mut(), &startup_message);
