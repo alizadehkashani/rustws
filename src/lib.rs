@@ -250,10 +250,16 @@ pub fn send_http_response (mut request: HTTPRequest) {
     //debug
     println!("file path: {}", request.request_line.path);
     //debug
-    //
 
+    //check if the favicon was requested
+    if request.request_line.path == "/favicon.ico" {
+        send_favicon(request);
+        return;
+    }
+
+    //create full path by adding root directory
     let path = match request.request_line.path.as_str() {
-        "/" => format!("{}{}", constants::ROOT, "index.hmtl"),
+        "/" => format!("{}{}", constants::ROOT, "/index.html"),
         _ => [constants::ROOT, &request.request_line.path].concat(),
     };
 
@@ -261,7 +267,9 @@ pub fn send_http_response (mut request: HTTPRequest) {
     println!("file path after match: {}", path);
     //debug
 
+    //read the contents from the file
     let contents = fs::read_to_string(path);
+    
 
     match contents {
         Ok(content) => {//the file has been found and read
@@ -280,6 +288,12 @@ pub fn send_http_response (mut request: HTTPRequest) {
         },
     }
 
+}
+
+pub fn send_favicon (mut request: HTTPRequest) {
+        //debug
+        println!("fav icon was requested");
+        //debug
 }
 
 pub fn parse_json_string (json_string: &str) -> HashMap<String, String> {
