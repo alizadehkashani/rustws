@@ -73,7 +73,10 @@ pub fn read_request_line (buf_reader: &mut BufReader<&TcpStream>) -> String {
     let mut request_line = String::new();
 
     //read the line into the new string
+    //TODO replace unwrap with error handling
+    //hint: connection reset by peer
     buf_reader.read_line(&mut request_line).unwrap();
+
 
     let request_line = request_line.trim().to_string();
 
@@ -247,25 +250,11 @@ pub fn read_http_body (
 
 pub fn send_http_response (mut request: HTTPRequest) {
 
-    //debug
-    println!("file path: {}", request.request_line.path);
-    //debug
-
-    //check if the favicon was requested
-    if request.request_line.path == "/favicon.ico" {
-        send_favicon(request);
-        return;
-    }
-
     //create full path by adding root directory
     let path = match request.request_line.path.as_str() {
-        "/" => format!("{}{}", constants::ROOT, "/index.html"),
+        "/" => format!("{}{}", constants::ROOT, "/login.html"),
         _ => [constants::ROOT, &request.request_line.path].concat(),
     };
-
-    //debug
-    println!("file path after match: {}", path);
-    //debug
 
     //get the file type
     let file_type = match path.split('.').nth(1) {
@@ -273,16 +262,8 @@ pub fn send_http_response (mut request: HTTPRequest) {
         None => "undefined",
 
     };
-
-    //debug
-    println!("file type: {}", file_type);
-    //debug
     
     let content_type = get_content_type(file_type);
-
-    //debug
-    println!("response content-type: {}", file_type);
-    //debug
 
     //create vector to hold content
     let mut content_vector = Vec::new();
@@ -292,23 +273,12 @@ pub fn send_http_response (mut request: HTTPRequest) {
     match content_file {
         Ok(mut file) => {
             //read to end into vector, handle errors
-            //debug
-            println!("file gefunden");
-            //debug
             match file.read_to_end(&mut content_vector) {
                 Ok(content) => {
-                    //debug
-                    println!("file gelesen");
-                    //debug
+
                     let status_line = "HTTP/1.1 200 OK";
                     let length = content_vector.len();
                     
-                    //debug
-                    println!("length of vector: {}", length);
-                    println!("content of vector: {:?}", content_vector);
-                    println!("capacity of vector: {}", content_vector.capacity());
-                    //debug
-
                     let response = 
                     format!("{status_line}\r\nContent-Type: {content_type}\r\nContent-Length: {length}\r\n\r\n");
 
@@ -325,41 +295,14 @@ pub fn send_http_response (mut request: HTTPRequest) {
         },
     };
 
-    /*
-
-    //read the contents from the file
-    //let contents = fs::read_to_string(&path);
-    
-
-    match contents {
-        Ok(content) => {//the file has been found and read
-            println!("file gefunden");
-            let status_line = "HTTP/1.1 200 OK";
-
-            let length = content.len();
-
-            let response = 
-            format!("{status_line}\r\nContent-Type: {content_type}\r\nContent-Length: {length}\r\n\r\n{content}");
-
-            request.stream.write_all(response.as_bytes()).unwrap();
-        },
-        Err(error_message) => {//could not find file
-            println!("{}", error_message); 
-        },
-    }
-    */
-
-}
-
-pub fn send_favicon (mut request: HTTPRequest) {
-        //debug
-        println!("fav icon was requested");
-        //debug
 }
 
 pub fn get_content_type (file_type: &str) -> &str {
     match file_type {
         "png" => "image/png",
+        "ico" => "image/x-icon",
+        "css" => "text/css",
+        "js" => "application/javascript",
         _ => "*/*"
     }
 }

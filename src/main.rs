@@ -34,7 +34,7 @@ fn main() {
     */
 
     let listener = TcpListener::bind("212.132.120.118:7878").unwrap();
-    let threadpool = ThreadPool::new(4);
+    let threadpool = ThreadPool::new(8);
 
     println!("after pool creation");
 
@@ -53,9 +53,11 @@ fn handle_connection(stream: TcpStream, database_connections: Arc<DatabaseConnec
     
     let mut database_connection = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
     let db_data = database_connection.query("SELECT * FROM users");
+
     //debug
-    println!("response from DB: {:?}", db_data[0]);
+    //println!("response from DB: {:?}", db_data[0]);
     //debug
+
     let _json = json_encode(&db_data);
     database_connections.release_connection(database_connection);
 
@@ -65,6 +67,10 @@ fn handle_connection(stream: TcpStream, database_connections: Arc<DatabaseConnec
     let mut buf_reader = BufReader::new(&stream);
 
     let request_line = read_request_line(&mut buf_reader);
+
+    //debug
+    println!("request line: {}", request_line);
+    //debug
 
     //parse the request line
     let request_line = parse_request_line(request_line);
@@ -85,13 +91,6 @@ fn handle_connection(stream: TcpStream, database_connections: Arc<DatabaseConnec
         false => None,
 
     };
-
-    //DEBUG 
-    if http_headers.contains_key("Accept") {
-        //println!("{:?}", http_headers["Accept"]);
-        println!("{:?}", header_accept.unwrap());
-    }
-    //DEBUG 
 
     let content_type = match http_headers.get("Content-Type") {
         Some(ctype) => ctype.to_string(),
