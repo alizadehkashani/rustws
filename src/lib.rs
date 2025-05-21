@@ -7,7 +7,7 @@ use std::{
     net::TcpStream,
     thread,
     collections::{HashMap, VecDeque},
-    fs,
+    fs::File,
 };
 
 mod constants;
@@ -267,8 +267,68 @@ pub fn send_http_response (mut request: HTTPRequest) {
     println!("file path after match: {}", path);
     //debug
 
+    //get the file type
+    let file_type = match path.split('.').nth(1) {
+        Some(ftype) => ftype,
+        None => "undefined",
+
+    };
+
+    //debug
+    println!("file type: {}", file_type);
+    //debug
+    
+    let content_type = get_content_type(file_type);
+
+    //debug
+    println!("response content-type: {}", file_type);
+    //debug
+
+    //create vector to hold content
+    let mut content_vector = Vec::new();
+    //open the file, handle errors
+    let content_file = File::open(&path);
+
+    match content_file {
+        Ok(mut file) => {
+            //read to end into vector, handle errors
+            //debug
+            println!("file gefunden");
+            //debug
+            match file.read_to_end(&mut content_vector) {
+                Ok(content) => {
+                    //debug
+                    println!("file gelesen");
+                    //debug
+                    let status_line = "HTTP/1.1 200 OK";
+                    let length = content_vector.len();
+                    
+                    //debug
+                    println!("length of vector: {}", length);
+                    println!("content of vector: {:?}", content_vector);
+                    println!("capacity of vector: {}", content_vector.capacity());
+                    //debug
+
+                    let response = 
+                    format!("{status_line}\r\nContent-Type: {content_type}\r\nContent-Length: {length}\r\n\r\n");
+
+                    request.stream.write_all(response.as_bytes()).unwrap();
+                    request.stream.write_all(&content_vector).unwrap();
+                },
+                Err(error_message) => {
+                    println!("{}", error_message); 
+                },
+            };
+        },
+        Err(error_message) => {
+            println!("{}", error_message); 
+        },
+    };
+
+    /*
+
     //read the contents from the file
-    let contents = fs::read_to_string(path);
+    //let contents = fs::read_to_string(&path);
     
 
     match contents {
@@ -279,7 +339,7 @@ pub fn send_http_response (mut request: HTTPRequest) {
             let length = content.len();
 
             let response = 
-            format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{content}");
+            format!("{status_line}\r\nContent-Type: {content_type}\r\nContent-Length: {length}\r\n\r\n{content}");
 
             request.stream.write_all(response.as_bytes()).unwrap();
         },
@@ -287,6 +347,7 @@ pub fn send_http_response (mut request: HTTPRequest) {
             println!("{}", error_message); 
         },
     }
+    */
 
 }
 
@@ -294,6 +355,13 @@ pub fn send_favicon (mut request: HTTPRequest) {
         //debug
         println!("fav icon was requested");
         //debug
+}
+
+pub fn get_content_type (file_type: &str) -> &str {
+    match file_type {
+        "png" => "image/png",
+        _ => "*/*"
+    }
 }
 
 pub fn parse_json_string (json_string: &str) -> HashMap<String, String> {
