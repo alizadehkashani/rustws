@@ -4,6 +4,7 @@ use std::{
     io::BufRead,
     io::Write,
     io::Read,
+    io::ErrorKind,
     net::TcpStream,
     thread,
     collections::{HashMap, VecDeque},
@@ -291,10 +292,43 @@ pub fn send_http_response (mut request: HTTPRequest) {
             };
         },
         Err(error_message) => {
-            println!("{}", error_message); 
+            println!("file open error message{}", error_message); 
+
+            //check the error kind to respons accordingly
+            match error_message.kind() {
+                ErrorKind::NotFound => {
+                    println!("error kind is NotFound");
+
+                    //TODO send 404 response
+                    send_404(request);
+
+                },
+                _ => {
+                    println!("unkown error kind");
+                }
+            }
         },
     };
 
+}
+
+pub fn send_404 (mut request: HTTPRequest) {
+    println!("send 404");
+    let status_line = "HTTP/1.1 404 Not Found";
+
+    //create vector to hold content
+    let mut content_vector = Vec::new();
+    //open the file, handle errors
+    let content_file = File::open("404.html").unwrap()
+        .read_to_end(&mut content_vector)
+        .unwrap();
+
+    let length = content_vector.len();
+
+    let response = 
+    format!("{status_line}\r\nContent-Length: {length}\r\n\r\n");
+    request.stream.write_all(response.as_bytes()).unwrap();
+    request.stream.write_all(&content_vector).unwrap();
 }
 
 pub fn get_content_type (file_type: &str) -> &str {
