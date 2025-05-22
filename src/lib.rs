@@ -251,11 +251,37 @@ pub fn read_http_body (
 
 pub fn send_http_response (mut request: HTTPRequest) {
 
+    //debug
+    println!("path: {}", request.request_line.path);
+    //debug
+
+
     //create full path by adding root directory
     let path = match request.request_line.path.as_str() {
         "/" => format!("{}{}", constants::ROOT, "/login.html"),
         _ => [constants::ROOT, &request.request_line.path].concat(),
     };
+
+    let mut path_split = path.split('/');
+
+    //check if the path is an api call
+    if let Some(path) = path_split.nth(4) { 
+
+        if path == "api" {
+
+            let category = path_split.next().unwrap();
+            let function = path_split.next().unwrap();
+
+            execute_api_call(request, category, function);
+            return;
+
+        }
+
+    };
+
+    //debug
+    println!("path: {}", path);
+    //debug
 
     //get the file type
     let file_type = match path.split('.').nth(1) {
@@ -310,6 +336,21 @@ pub fn send_http_response (mut request: HTTPRequest) {
         },
     };
 
+}
+
+pub fn execute_api_call(request: HTTPRequest, category: &str, function: &str) {
+    println!("category: {}", category);
+    println!("function: {}", function);
+
+    match category {
+        "login" => {
+            match function {
+                "logon" => println!("api call to login/logon was made"),
+                _ => send_404(request),
+            }
+        },
+        _ => send_404(request),
+    }
 }
 
 pub fn send_404 (mut request: HTTPRequest) {
