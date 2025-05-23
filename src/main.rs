@@ -51,15 +51,19 @@ fn main() {
 
 fn handle_connection(stream: TcpStream, database_connections: Arc<DatabaseConnectionPool>) {
     
-    let mut database_connection = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
-    let db_data = database_connection.query("SELECT * FROM users");
+    //debug
+    //let mut database_connection = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
+    //let db_data = database_connection.query("SELECT * FROM users");
+    //debug
 
     //debug
     //println!("response from DB: {:?}", db_data[0]);
     //debug
 
-    let _json = json_encode(&db_data);
-    database_connections.release_connection(database_connection);
+    //debug
+    //let _json = json_encode(&db_data);
+    //database_connections.release_connection(database_connection);
+    //debug
 
     println!("!!!!!!!!!!!!!!!!!!!!!!!!!!new connection");
 
@@ -97,13 +101,13 @@ fn handle_connection(stream: TcpStream, database_connections: Arc<DatabaseConnec
         None => String::from("no content type defined"),
     };
 
+    //TODO rewrite this, so that a body variable is only created, if there is content
     //variable for body data
-    let body: String;
+    let mut body = String::from("");
 
     //if its a post request, check if there is a body
     if let Method::POST = request_line.method {
 
-        //TODO next lines do not really make sense, could be reduced
         //create option for content lengh
         let content_length: Option<usize> = match http_headers.get("Content-Length") {
             Some(length) => Some(length.parse().unwrap()), //TODO handling, if parse fails
@@ -111,24 +115,21 @@ fn handle_connection(stream: TcpStream, database_connections: Arc<DatabaseConnec
         };
 
         //read the content of the body of the post request
-        if let Some(clength) = content_length {
-            println!("content length: {}", clength);
-            body = read_http_body(&mut buf_reader, clength);
-            println!("body: {}", body);
-        }
+        body = match content_length {
+            Some(clength) => {
+                read_http_body(&mut buf_reader, clength)
+            },
+            None => String::from("")
+        };
     }
 
     let full_request = HTTPRequest {
         stream: stream,
-        request_line: request_line 
+        request_line: request_line ,
+        body: body,
     };
 
-    //DEBUG
-    //println!("content type: {}", content_type);
-    //println!("path: {}", request_line.path);
-    //DEBUG
-
-    send_http_response(full_request);
+    send_http_response(full_request, database_connections);
 
     /*
     //variable to hold the content length of the body

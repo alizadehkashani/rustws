@@ -42,6 +42,7 @@ pub enum DatabaseValue {
 pub struct HTTPRequest {
     pub stream: TcpStream,
     pub request_line: RequestLine,
+    pub body: String,
 }
 
 pub struct RequestLine {
@@ -243,13 +244,16 @@ pub fn read_http_body (
     //read content into vector
     buf_reader.read_exact(&mut body).unwrap(); 
 
-    //turn boty from bytes into a string
+    //turn body from bytes into a string
     let body = std::str::from_utf8(&body).unwrap();
 
     body.to_string()
 }
 
-pub fn send_http_response (mut request: HTTPRequest) {
+pub fn send_http_response (
+    mut request: HTTPRequest, 
+    database_connections: Arc<DatabaseConnectionPool>
+) {
 
     //debug
     println!("path: {}", request.request_line.path);
@@ -272,7 +276,7 @@ pub fn send_http_response (mut request: HTTPRequest) {
             let category = path_split.next().unwrap();
             let function = path_split.next().unwrap();
 
-            execute_api_call(request, category, function);
+            execute_api_call(request, database_connections, category, function);
             return;
 
         }
@@ -338,19 +342,58 @@ pub fn send_http_response (mut request: HTTPRequest) {
 
 }
 
-pub fn execute_api_call(request: HTTPRequest, category: &str, function: &str) {
+pub fn execute_api_call(
+    request: HTTPRequest, 
+    database_connections: Arc<DatabaseConnectionPool>,
+    category: &str, 
+    function: &str
+) {
     println!("category: {}", category);
     println!("function: {}", function);
 
     match category {
         "login" => {
             match function {
-                "logon" => println!("api call to login/logon was made"),
+                "logon" => api_login_logon(request, database_connections),
                 _ => send_404(request),
             }
         },
         _ => send_404(request),
     }
+}
+
+pub fn api_login_logon (    
+    request: HTTPRequest, 
+    database_connections: Arc<DatabaseConnectionPool>,
+) {
+    println!("api call to login/logon was made");
+    println!("body of post req: {}", request.body);
+
+    let post_data = parse_json_string(&request.body);
+
+    println!("hash json: {:?}", post_data);
+    println!("user from hash: {}", post_data.get("user").unwrap());
+
+    let query = format!(
+        "SELECT * FROM users WHERE username = '{}'", 
+        post_data.get("user").unwrap()
+    );
+
+    println!("query: {}", query.trim());
+
+    let mut db_con = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
+    let data = db_con.query(&query);
+    database_connections.release_connection(db_con);
+
+    let json = json_encode(&data);
+    println!("json from db: {}", json);
+
+
+
+    
+}
+
+pub fn api_send_response (mut request: HTTPRequest) {
 }
 
 pub fn send_404 (mut request: HTTPRequest) {
