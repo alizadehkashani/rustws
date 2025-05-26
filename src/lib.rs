@@ -7,7 +7,7 @@ use std::{
     io::ErrorKind,
     net::TcpStream,
     thread,
-    collections::{HashMap, VecDeque},
+    collections::{HashMap, VecDeque, BTreeMap},
     fs::File,
 };
 
@@ -389,7 +389,7 @@ pub fn api_login_logon (
 
 pub fn api_send_response_json (
     mut request: HTTPRequest, 
-    database_response: Vec<HashMap<String, Option<DatabaseValue>>>
+    database_response: Vec<BTreeMap<String, Option<DatabaseValue>>>
 ) {
     //turn database data into json
     let json = json_encode(&database_response);
@@ -480,7 +480,7 @@ pub fn convert_query_string (query_string: String) -> HashMap::<String, String> 
     return query_string_hashmap;
 }
 
-pub fn json_encode (data: &Vec<HashMap<String, Option<DatabaseValue>>>) -> String {
+pub fn json_encode (data: &Vec<BTreeMap<String, Option<DatabaseValue>>>) -> String {
     let mut json = String::new();
 
     //number of rows in the query
@@ -713,7 +713,7 @@ impl DatabaseConnection {
         DatabaseConnection { id, reader } 
     }
     
-    pub fn query(&mut self, query: &str) -> Vec<HashMap<String, Option<DatabaseValue>>> {
+    pub fn query(&mut self, query: &str) -> Vec<BTreeMap<String, Option<DatabaseValue>>> {
         //send query to database
         Self::send_query(&mut self.reader, &query);
         //put response of database into variable
@@ -945,7 +945,7 @@ impl DatabaseConnection {
 
     }
 
-    fn read_query_response (reader: &mut BufReader<TcpStream>) -> Vec<HashMap<String, Option<DatabaseValue>>> {
+    fn read_query_response (reader: &mut BufReader<TcpStream>) -> Vec<BTreeMap<String, Option<DatabaseValue>>> {
 
 
         //read row description
@@ -959,7 +959,7 @@ impl DatabaseConnection {
         assert!(matches!(query_response_head[0], 69 | 84));
 
         //create vector holding the individual rows
-        let mut rows: Vec<HashMap<String, Option<DatabaseValue>>> = Vec::new();
+        let mut rows: Vec<BTreeMap<String, Option<DatabaseValue>>> = Vec::new();
 
         //if error read error
         //and exit out of function
@@ -1094,7 +1094,7 @@ impl DatabaseConnection {
     fn read_rows (
         reader: &mut BufReader<TcpStream>, 
         row_descriptions: Vec<DatabaseRowDescription>, 
-        rows: &mut Vec<HashMap<String, Option<DatabaseValue>>>
+        rows: &mut Vec<BTreeMap<String, Option<DatabaseValue>>>
     ) {
         loop {
             //67 'C' is command complete
@@ -1122,7 +1122,7 @@ impl DatabaseConnection {
                         .unwrap());
                     
                     //create hash map, holding the values
-                    let mut values = HashMap::new();
+                    let mut values = BTreeMap::new();
 
                     //loop through the columns
                     for i in 0..number_of_columns as usize {
