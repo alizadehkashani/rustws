@@ -366,34 +366,48 @@ pub fn api_login_logon (
     request: HTTPRequest, 
     database_connections: Arc<DatabaseConnectionPool>,
 ) {
-    println!("api call to login/logon was made");
-    println!("body of post req: {}", request.body);
 
+    //parse the data from the fetch request
     let post_data = parse_json_string(&request.body);
 
-    println!("hash json: {:?}", post_data);
-    println!("user from hash: {}", post_data.get("user").unwrap());
+    let query = "SELECT * FROM users";
 
+    /*
     let query = format!(
         "SELECT * FROM users WHERE username = '{}'", 
         post_data.get("user").unwrap()
     );
-
-    println!("query: {}", query.trim());
+    */
 
     let mut db_con = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
     let data = db_con.query(&query);
     database_connections.release_connection(db_con);
 
-    let json = json_encode(&data);
-    println!("json from db: {}", json);
+    api_send_response_json(request, data);
 
-
-
-    
 }
 
-pub fn api_send_response (mut request: HTTPRequest) {
+pub fn api_send_response_json (
+    mut request: HTTPRequest, 
+    database_response: Vec<HashMap<String, Option<DatabaseValue>>>
+) {
+    //turn database data into json
+    let json = json_encode(&database_response);
+    println!("json: {}", json);
+
+    //variable to hold the length of the json
+    let length = json.len();
+
+    //set statusline
+    let status_line = "HTTP/1.1 200 Ok";
+
+    //format the response
+    let response = 
+    format!("{status_line}\r\nContent-Type: application/json\r\nContent-Length: {length}\r\n\r\n");
+
+    //send the response, header and content
+    request.stream.write_all(response.as_bytes()).unwrap();
+    request.stream.write_all(&json.as_bytes()).unwrap();
 }
 
 pub fn send_404 (mut request: HTTPRequest) {
@@ -496,6 +510,9 @@ pub fn json_encode (data: &Vec<HashMap<String, Option<DatabaseValue>>>) -> Strin
 
             json.push('"');
             json.push_str(key);
+            //debug
+            println!("key: {}", key);
+            //debug
             json.push('"');
             json.push_str(": ");
 
