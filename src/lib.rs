@@ -34,6 +34,7 @@ pub enum Method {
 }
 
 #[derive(Debug)]
+//#[derive(Clone)]
 pub enum DatabaseValue {
     Integer(i32),
     Varchar(String),
@@ -370,18 +371,51 @@ pub fn api_login_logon (
     //parse the data from the fetch request
     let post_data = parse_json_string(&request.body);
 
-    let query = "SELECT * FROM users";
+    //TODO handling if there is no user in the body
+    let user = post_data.get("user").unwrap(); 
+    //TODO handling if there is no password in the body
+    let user_pw = post_data.get("password").unwrap(); 
 
-    /*
+    //debug
+    println!("post data: {:?}", post_data);
+    //debug
+
     let query = format!(
         "SELECT * FROM users WHERE username = '{}'", 
-        post_data.get("user").unwrap()
+        user
     );
-    */
 
     let mut db_con = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
     let data = db_con.query(&query);
     database_connections.release_connection(db_con);
+
+
+    //check if a user has been found
+    //if not, return
+    if data.len() == 0 {
+        //TODO handle if no user has been found
+        //debug
+        println!("no user has been found");
+        println!("length of db response: {}", data.len());
+        //debug
+        return;
+    }
+
+    let db_pw = match data[0].get("password").unwrap() {
+        Some(DatabaseValue::Varchar(pw)) => pw.clone(),
+        _ => String::from(""),
+    };
+
+    //check if the password matches
+    if db_pw == user_pw.as_str() {//TODO when pw matches
+        //debug
+        println!("pw matches");
+        //debug
+    } else {//TODO what to do, when password does not match
+        //debug
+        println!("pw does NOT match");
+        //debug
+    }
 
     api_send_response_json(request, data);
 
@@ -393,7 +427,6 @@ pub fn api_send_response_json (
 ) {
     //turn database data into json
     let json = json_encode(&database_response);
-    println!("json: {}", json);
 
     //variable to hold the length of the json
     let length = json.len();
@@ -510,9 +543,6 @@ pub fn json_encode (data: &Vec<BTreeMap<String, Option<DatabaseValue>>>) -> Stri
 
             json.push('"');
             json.push_str(key);
-            //debug
-            println!("key: {}", key);
-            //debug
             json.push('"');
             json.push_str(": ");
 
