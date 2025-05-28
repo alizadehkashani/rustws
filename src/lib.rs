@@ -13,6 +13,10 @@ use std::{
 
 mod constants;
 
+trait MatchJsonType {
+    fn match_json_type(&self) -> JsonType;
+}
+
 pub struct DatabaseRowDescription {
     name: String,
     table_oid: i32,
@@ -34,10 +38,23 @@ pub enum Method {
 }
 
 #[derive(Debug)]
-//#[derive(Clone)]
 pub enum DatabaseValue {
     Integer(i32),
     Varchar(String),
+}
+
+impl MatchJsonType for DatabaseValue {
+    fn match_json_type(&self) -> JsonType {
+        match &self {
+            DatabaseValue::Integer(int) => JsonType::Number(*int),
+            DatabaseValue::Varchar(string) => JsonType::String(string.to_string()),
+        }
+    }
+}
+
+pub enum JsonType {
+    String(String),
+    Number(i32),
 }
 
 pub struct HTTPRequest {
@@ -513,7 +530,7 @@ pub fn convert_query_string (query_string: String) -> HashMap::<String, String> 
     return query_string_hashmap;
 }
 
-pub fn json_encode (data: &Vec<BTreeMap<String, Option<DatabaseValue>>>) -> String {
+pub fn json_encode<T: MatchJsonType  > (data: &Vec<BTreeMap<String, Option<T>>>) -> String {
     let mut json = String::new();
 
     //number of rows in the query
@@ -551,14 +568,14 @@ pub fn json_encode (data: &Vec<BTreeMap<String, Option<DatabaseValue>>>) -> Stri
                     json.push_str("null");
                 },
                 Some(value) => {
-                    match value {
-                        DatabaseValue::Integer(integer) => {
-                            json.push_str(&integer.to_string());
+                    match value.match_json_type() {
+                        JsonType::String(string) => {
+                            json.push('"');
+                            json.push_str(&string);
+                            json.push('"');
                         },
-                        DatabaseValue::Varchar(string) => {
-                            json.push('"');
-                            json.push_str(string);
-                            json.push('"');
+                        JsonType::Number(number) => {
+                            json.push_str(&number.to_string());
                         },
 
                     }
