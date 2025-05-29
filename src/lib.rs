@@ -55,6 +55,23 @@ impl MatchJsonType for DatabaseValue {
 pub enum JsonType {
     String(String),
     Number(i32),
+    Boolean(bool),
+}
+
+pub enum APIValue {
+    String(String),
+    Number(i32),
+    Boolean(bool),
+}
+
+impl MatchJsonType for APIValue {
+    fn match_json_type(&self) -> JsonType {
+        match &self {
+            APIValue::String(string) => JsonType::String(string.to_string()),
+            APIValue::Number(int) => JsonType::Number(*int),
+            APIValue::Boolean(bool) => JsonType::Boolean(*bool),
+        }
+    }
 }
 
 pub struct HTTPRequest {
@@ -397,6 +414,9 @@ pub fn api_login_logon (
     println!("post data: {:?}", post_data);
     //debug
 
+    let mut api_response_vector: Vec<BTreeMap<String, Option<APIValue>>> = Vec::new();
+    let mut api_response_btreemap: BTreeMap<String, Option<APIValue>> = BTreeMap::new();
+
     let query = format!(
         "SELECT * FROM users WHERE username = '{}'", 
         user
@@ -423,24 +443,36 @@ pub fn api_login_logon (
         _ => String::from(""),
     };
 
+    
+
     //check if the password matches
     if db_pw == user_pw.as_str() {//TODO when pw matches
         //debug
         println!("pw matches");
         //debug
+        api_response_btreemap.insert(
+            String::from("LoginSuccessfull"), 
+            Some(APIValue::Boolean(true))
+        );
     } else {//TODO what to do, when password does not match
         //debug
         println!("pw does NOT match");
         //debug
+        api_response_btreemap.insert(
+            String::from("LoginSuccessfull"), 
+            Some(APIValue::Boolean(false))
+        );
     }
 
-    api_send_response_json(request, data);
+    api_response_vector.push(api_response_btreemap); 
+
+    api_send_response_json(request, api_response_vector);
 
 }
 
-pub fn api_send_response_json (
+pub fn api_send_response_json <T: MatchJsonType> (
     mut request: HTTPRequest, 
-    database_response: Vec<BTreeMap<String, Option<DatabaseValue>>>
+    database_response: Vec<BTreeMap<String, Option<T>>>
 ) {
     //turn database data into json
     let json = json_encode(&database_response);
@@ -576,6 +608,9 @@ pub fn json_encode<T: MatchJsonType  > (data: &Vec<BTreeMap<String, Option<T>>>)
                         },
                         JsonType::Number(number) => {
                             json.push_str(&number.to_string());
+                        },
+                        JsonType::Boolean(bool) => {
+                            json.push_str(&bool.to_string());
                         },
 
                     }
