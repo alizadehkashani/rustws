@@ -10,6 +10,7 @@ use std::{
     collections::{HashMap, VecDeque, BTreeMap},
     fs::File,
 };
+use rand::{distributions::Alphanumeric, Rng};
 
 mod constants;
 
@@ -52,10 +53,12 @@ impl MatchJsonType for DatabaseValue {
     }
 }
 
+#[derive(Debug)]
 pub enum JsonType {
     String(String),
     Number(i32),
     Boolean(bool),
+    Null,
 }
 
 pub enum APIValue {
@@ -405,13 +408,29 @@ pub fn api_login_logon (
     //parse the data from the fetch request
     let post_data = parse_json_string(&request.body);
 
-    //TODO handling if there is no user in the body
-    let user = post_data.get("user").unwrap(); 
-    //TODO handling if there is no password in the body
-    let user_pw = post_data.get("password").unwrap(); 
+    //initalizse the paramters
+    let mut user = String::from("");
+    let mut user_pw = String::from("");
+    let mut remember: bool = false;
+
+    //check the data from the http request, if data is available
+    if let JsonType::String(json_user) = post_data.get("user").unwrap() {
+        user = json_user.to_string()
+    }; 
+
+    if let JsonType::String(json_pw) = post_data.get("password").unwrap() {
+        user_pw = json_pw.to_string()
+    };
+
+    if let JsonType::Boolean(json_remember) = post_data.get("remember").unwrap() {
+        remember = *json_remember
+    }; 
 
     //debug
     println!("post data: {:?}", post_data);
+    println!("user: {}", user);
+    println!("pw: {}", user_pw);
+    println!("remember: {}", remember);
     //debug
 
     let mut api_response_vector: Vec<BTreeMap<String, Option<APIValue>>> = Vec::new();
@@ -426,6 +445,16 @@ pub fn api_login_logon (
     let data = db_con.query(&query);
     database_connections.release_connection(db_con);
 
+    let uid: String = rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(32)
+        .map(char::from)
+        .collect();
+
+    //debug
+    println!("rnd id: {}", uid);
+    //debug
+
 
     //check if a user has been found
     //if not, return
@@ -435,15 +464,27 @@ pub fn api_login_logon (
         println!("no user has been found");
         println!("length of db response: {}", data.len());
         //debug
+
+        api_response_btreemap.insert(
+            String::from("LoginSuccessfull"), 
+            Some(APIValue::Boolean(false))
+        );
+        api_response_btreemap.insert(
+            String::from("Error"), 
+            Some(APIValue::String(String::from("User not found")))
+        );
+        api_response_vector.push(api_response_btreemap); 
+
+        api_send_response_json(request, api_response_vector);
+        
         return;
     }
 
+    //get password from database response
     let db_pw = match data[0].get("password").unwrap() {
         Some(DatabaseValue::Varchar(pw)) => pw.clone(),
         _ => String::from(""),
     };
-
-    
 
     //check if the password matches
     if db_pw == user_pw.as_str() {//TODO when pw matches
@@ -521,24 +562,45 @@ pub fn get_content_type (file_type: &str) -> &str {
     }
 }
 
-pub fn parse_json_string (json_string: &str) -> HashMap<String, String> {
+pub fn parse_json_string (json_string: &str) -> HashMap<String, JsonType> {
+
+    //debug
+    println!("json string: {}", json_string);
+    //debug
 
     let mut json_hash = HashMap::new();
 
     //remove '{' and '}' from beginning and end
     let json_trim: &str = &json_string[1..json_string.len() - 1];
 
-    for item in json_trim.split(",") {
-        let mut item_iter = item.split(":");
+    //debug
+    println!("json string trim: {}", json_trim);
+    //debug
 
-        let key = item_iter.next().unwrap();
-        let key_trim: &str = &key[1..key.len() - 1];
+    for item in json_trim.split(",") {//split by the value pairs
+        let mut item_iter = item.split(":");//split the key and the value
 
-        let value = item_iter.next().unwrap();
-        let value_trim: &str = &value[1..value.len() - 1];
+        let key = item_iter.next().unwrap();//get the key
+        let key_trim: &str = &key[1..key.len() - 1];//remove the ""
 
-        json_hash.insert(key_trim.to_string(), value_trim.to_string());
-    };
+        let value_raw = item_iter.next().unwrap();
+        //check if the value starts and ends with ", then it is a string
+        let value = if value_raw.starts_with('"') && value_raw.ends_with('"') {
+            JsonType::String(value_raw[1..value_raw.len() - 1].to_string())
+        } else if value_raw == "true" {
+            JsonType::Boolean(true)
+        } else if value_raw == "false" {
+            JsonType::Boolean(false)
+        } else if value_raw == "null" {
+            JsonType::Null
+        } else if let Ok(num) = value_raw.parse::<i32>() {
+            JsonType::Number(num)
+        } else {
+            continue;
+        };
+
+            json_hash.insert(key_trim.to_string(), value);
+        };
 
     json_hash
 }
@@ -611,6 +673,9 @@ pub fn json_encode<T: MatchJsonType  > (data: &Vec<BTreeMap<String, Option<T>>>)
                         },
                         JsonType::Boolean(bool) => {
                             json.push_str(&bool.to_string());
+                        },
+                        JsonType::Null => {
+                            json.push_str("null");
                         },
 
                     }
