@@ -377,8 +377,9 @@ pub fn send_http_response (
             }
         },
     };
-
 }
+
+
 
 pub fn execute_api_call(
     request: HTTPRequest, 
@@ -393,11 +394,40 @@ pub fn execute_api_call(
         "login" => {
             match function {
                 "logon" => api_login_logon(request, database_connections),
+                "auto_logon" => api_login_auto_logon(request, database_connections),
                 _ => send_404(request),
             }
         },
         _ => send_404(request),
     }
+}
+
+pub fn generate_token() -> String {
+    rand::thread_rng()
+        .sample_iter(&Alphanumeric)
+        .take(32)
+        .map(char::from)
+        .collect()
+}
+
+pub fn api_login_auto_logon (
+    request: HTTPRequest, 
+    database_connections: Arc<DatabaseConnectionPool>,
+) {
+    let post_data = parse_json_string(&request.body);
+
+    //debug
+    println!("auto logon post data: {:?}", post_data);
+    //debug
+
+    let user_token = match post_data.get("UserToken").unwrap() {
+        JsonType::String(token) => token.to_string(),
+        _ => String::from(""),
+    };
+
+    //debug
+    println!("token: {}", user_token);
+    //debug
 }
 
 pub fn api_login_logon (    
@@ -445,17 +475,6 @@ pub fn api_login_logon (
     let data = db_con.query(&query);
     database_connections.release_connection(db_con);
 
-    let uid: String = rand::thread_rng()
-        .sample_iter(&Alphanumeric)
-        .take(32)
-        .map(char::from)
-        .collect();
-
-    //debug
-    println!("rnd id: {}", uid);
-    //debug
-
-
     //check if a user has been found
     //if not, return
     if data.len() == 0 {
@@ -495,6 +514,16 @@ pub fn api_login_logon (
             String::from("LoginSuccessfull"), 
             Some(APIValue::Boolean(true))
         );
+
+        //generate new token
+        let user_token = generate_token();
+
+        //insert token into btreemap
+        api_response_btreemap.insert(
+            String::from("UserToken"), 
+            Some(APIValue::String(user_token))
+        );
+
     } else {//TODO what to do, when password does not match
         //debug
         println!("pw does NOT match");
