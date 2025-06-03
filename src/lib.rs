@@ -13,6 +13,7 @@ use std::{
 use rand::{distributions::Alphanumeric, Rng};
 
 mod constants;
+mod api;
 
 trait MatchJsonType {
     fn match_json_type(&self) -> JsonType;
@@ -379,8 +380,6 @@ pub fn send_http_response (
     };
 }
 
-
-
 pub fn execute_api_call(
     request: HTTPRequest, 
     database_connections: Arc<DatabaseConnectionPool>,
@@ -393,8 +392,8 @@ pub fn execute_api_call(
     match category {
         "login" => {
             match function {
-                "logon" => api_login_logon(request, database_connections),
-                "auto_logon" => api_login_auto_logon(request, database_connections),
+                "logon" => api::login::api_login_logon(request, database_connections),
+                "auto_logon" => api::login::api_login_auto_logon(request, database_connections),
                 _ => send_404(request),
             }
         },
@@ -408,136 +407,6 @@ pub fn generate_token() -> String {
         .take(32)
         .map(char::from)
         .collect()
-}
-
-pub fn api_login_auto_logon (
-    request: HTTPRequest, 
-    database_connections: Arc<DatabaseConnectionPool>,
-) {
-    let post_data = parse_json_string(&request.body);
-
-    //debug
-    println!("auto logon post data: {:?}", post_data);
-    //debug
-
-    let user_token = match post_data.get("UserToken").unwrap() {
-        JsonType::String(token) => token.to_string(),
-        _ => String::from(""),
-    };
-
-    //debug
-    println!("token: {}", user_token);
-    //debug
-}
-
-pub fn api_login_logon (    
-    request: HTTPRequest, 
-    database_connections: Arc<DatabaseConnectionPool>,
-) {
-
-    //parse the data from the fetch request
-    let post_data = parse_json_string(&request.body);
-
-    //initalizse the paramters
-    let mut user = String::from("");
-    let mut user_pw = String::from("");
-    let mut remember: bool = false;
-
-    //check the data from the http request, if data is available
-    if let JsonType::String(json_user) = post_data.get("user").unwrap() {
-        user = json_user.to_string()
-    }; 
-
-    if let JsonType::String(json_pw) = post_data.get("password").unwrap() {
-        user_pw = json_pw.to_string()
-    };
-
-    if let JsonType::Boolean(json_remember) = post_data.get("remember").unwrap() {
-        remember = *json_remember
-    }; 
-
-    //debug
-    println!("post data: {:?}", post_data);
-    println!("user: {}", user);
-    println!("pw: {}", user_pw);
-    println!("remember: {}", remember);
-    //debug
-
-    let mut api_response_vector: Vec<BTreeMap<String, Option<APIValue>>> = Vec::new();
-    let mut api_response_btreemap: BTreeMap<String, Option<APIValue>> = BTreeMap::new();
-
-    let query = format!(
-        "SELECT * FROM users WHERE username = '{}'", 
-        user
-    );
-
-    let mut db_con = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
-    let data = db_con.query(&query);
-    database_connections.release_connection(db_con);
-
-    //check if a user has been found
-    //if not, return
-    if data.len() == 0 {
-        //TODO handle if no user has been found
-        //debug
-        println!("no user has been found");
-        println!("length of db response: {}", data.len());
-        //debug
-
-        api_response_btreemap.insert(
-            String::from("LoginSuccessfull"), 
-            Some(APIValue::Boolean(false))
-        );
-        api_response_btreemap.insert(
-            String::from("Error"), 
-            Some(APIValue::String(String::from("User not found")))
-        );
-        api_response_vector.push(api_response_btreemap); 
-
-        api_send_response_json(request, api_response_vector);
-        
-        return;
-    }
-
-    //get password from database response
-    let db_pw = match data[0].get("password").unwrap() {
-        Some(DatabaseValue::Varchar(pw)) => pw.clone(),
-        _ => String::from(""),
-    };
-
-    //check if the password matches
-    if db_pw == user_pw.as_str() {//TODO when pw matches
-        //debug
-        println!("pw matches");
-        //debug
-        api_response_btreemap.insert(
-            String::from("LoginSuccessfull"), 
-            Some(APIValue::Boolean(true))
-        );
-
-        //generate new token
-        let user_token = generate_token();
-
-        //insert token into btreemap
-        api_response_btreemap.insert(
-            String::from("UserToken"), 
-            Some(APIValue::String(user_token))
-        );
-
-    } else {//TODO what to do, when password does not match
-        //debug
-        println!("pw does NOT match");
-        //debug
-        api_response_btreemap.insert(
-            String::from("LoginSuccessfull"), 
-            Some(APIValue::Boolean(false))
-        );
-    }
-
-    api_response_vector.push(api_response_btreemap); 
-
-    api_send_response_json(request, api_response_vector);
-
 }
 
 pub fn api_send_response_json <T: MatchJsonType> (
@@ -1124,24 +993,48 @@ impl DatabaseConnection {
     fn read_query_response (reader: &mut BufReader<TcpStream>) -> Vec<BTreeMap<String, Option<DatabaseValue>>> {
 
 
-        //read row description
+        //read response head
         let mut query_response_head: Vec<u8> = vec![0; 5];
         Self::read_from_db_stream(reader, &mut query_response_head);
         //get the length of the message
         let query_response_length: i32 = i32::from_be_bytes(query_response_head[1..].try_into().unwrap());
 
+        //debug
+        println!("reponse: {}", query_response_head[0]);
+        //debug
+
         //make sure, that the response is a row desciption
         //or error
-        assert!(matches!(query_response_head[0], 69 | 84));
+        assert!(matches!(query_response_head[0], 67 | 69 | 84));
 
         //create vector holding the individual rows
         let mut rows: Vec<BTreeMap<String, Option<DatabaseValue>>> = Vec::new();
+
 
         //if error read error
         //and exit out of function
         if query_response_head[0] == 69 {
             //if the response is an error, read the error
             Self::read_error(reader, query_response_length);
+            //after reading the error, check if the db is ready for a new query
+            Self::read_ready_command(reader);
+            return rows;
+        }
+
+        //if response is query complete because of insert for exmaple
+        if query_response_head[0] == 67 {
+            //if the response is complete, read the complte string
+            let complete_command = Self::read_complete_command(reader, query_response_length);
+
+            let mut complete_command_result = BTreeMap::new();
+
+            complete_command_result.insert(
+                String::from("Complete"), 
+                Some(DatabaseValue::Varchar(complete_command))
+            );
+
+            rows.push(complete_command_result);
+
             //after reading the error, check if the db is ready for a new query
             Self::read_ready_command(reader);
             return rows;
@@ -1383,6 +1276,31 @@ impl DatabaseConnection {
 
             }
         }
+    }
+
+    fn read_complete_command (reader: &mut BufReader<TcpStream>, response_length: i32) -> String {
+        //get the response from the db
+        let mut complete_tag: Vec<u8> = vec![0; response_length as usize - 4];
+        Self::read_from_db_stream(reader, &mut complete_tag);
+
+        //create new empty vector
+        let mut complete_tag_parse: Vec<u8> = Vec::new();
+
+        //loop through the response from the db, end when a null terminator has been rechead
+        //response from the db will always end with a null terminator
+        for vec_pos in 0..complete_tag.len() {
+            if complete_tag[vec_pos] == 0x00 {
+                break;
+            }
+            complete_tag_parse.push(complete_tag[vec_pos]);
+        }
+
+        //turn the u8 into a string
+        let complete_tag_string = String::from(std::str::from_utf8(&complete_tag_parse[..]).unwrap());
+
+        //return the string
+        return complete_tag_string;
+
     }
 
     fn read_ready_command (reader: &mut BufReader<TcpStream>) {

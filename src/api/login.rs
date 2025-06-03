@@ -1,0 +1,208 @@
+use crate::APIValue;
+use crate::JsonType;
+use crate::DatabaseConnectionPool;
+use crate::DatabaseValue;
+use crate::HTTPRequest;
+use crate::generate_token;
+use crate::api_send_response_json;
+use crate::parse_json_string;
+
+use std::collections::BTreeMap;
+use std::sync::Arc;
+
+pub fn api_login_auto_logon (
+    request: HTTPRequest, 
+    database_connections: Arc<DatabaseConnectionPool>,
+) {
+    let post_data = parse_json_string(&request.body);
+
+    let user_token = match post_data.get("UserToken").unwrap() {
+        JsonType::String(token) => token.to_string(),
+        _ => String::from(""),
+    };
+
+    //create variables for the response
+    let mut api_response_vector: Vec<BTreeMap<String, Option<APIValue>>> = Vec::new();
+    let mut api_response_btreemap: BTreeMap<String, Option<APIValue>> = BTreeMap::new();
+
+    //debug
+    println!("token: {}", user_token);
+    //debug
+
+    //see if a user with this token is in the database
+    let query = format!(
+        "SELECT token FROM users WHERE token = '{}'", 
+        user_token
+    );
+
+    let mut db_con = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
+    let data = db_con.query(&query);
+    database_connections.release_connection(db_con);
+
+    //debug
+    println!("user with token: {:?}", data);
+    //debug
+
+        
+    //check if no user has been found, if yes, return
+    if data.len() == 0 {
+        api_response_btreemap.insert(
+            String::from("AuthenticationSuccessfull"), 
+            Some(APIValue::Boolean(false))
+        );
+        api_response_btreemap.insert(
+            String::from("Message"), 
+            Some(APIValue::String(String::from("No user found with matching token")))
+        );
+
+        api_response_vector.push(api_response_btreemap); 
+        api_send_response_json(request, api_response_vector);
+        
+        return;
+    } else {
+        api_response_btreemap.insert(
+            String::from("AuthenticationSuccessfull"), 
+            Some(APIValue::Boolean(true))
+        );
+        api_response_btreemap.insert(
+            String::from("Message"), 
+            Some(APIValue::String(String::from("Matchin user with token has been found")))
+        );
+
+        api_response_vector.push(api_response_btreemap); 
+        api_send_response_json(request, api_response_vector);
+        
+        return;
+
+    }
+
+
+    
+
+    
+}
+
+pub fn api_login_logon (    
+    request: HTTPRequest, 
+    database_connections: Arc<DatabaseConnectionPool>,
+) {
+
+    //parse the data from the fetch request
+    let post_data = parse_json_string(&request.body);
+
+    //initalizse the paramters
+    let mut user = String::from("");
+    let mut user_pw = String::from("");
+    let mut remember: bool = false;
+
+    //check the data from the http request, if data is available
+    if let JsonType::String(json_user) = post_data.get("user").unwrap() {
+        user = json_user.to_string()
+    }; 
+
+    if let JsonType::String(json_pw) = post_data.get("password").unwrap() {
+        user_pw = json_pw.to_string()
+    };
+
+    if let JsonType::Boolean(json_remember) = post_data.get("remember").unwrap() {
+        remember = *json_remember
+    }; 
+
+    //debug
+    println!("post data: {:?}", post_data);
+    println!("user: {}", user);
+    println!("pw: {}", user_pw);
+    println!("remember: {}", remember);
+    //debug
+
+    let mut api_response_vector: Vec<BTreeMap<String, Option<APIValue>>> = Vec::new();
+    let mut api_response_btreemap: BTreeMap<String, Option<APIValue>> = BTreeMap::new();
+
+    let query = format!(
+        "SELECT * FROM users WHERE username = '{}'", 
+        user
+    );
+
+    let mut db_con = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
+    let data = db_con.query(&query);
+    database_connections.release_connection(db_con);
+
+    //check if a user has been found
+    //if not, return
+    if data.len() == 0 {
+        //TODO handle if no user has been found
+        //debug
+        println!("no user has been found");
+        println!("length of db response: {}", data.len());
+        //debug
+
+        api_response_btreemap.insert(
+            String::from("LoginSuccessfull"), 
+            Some(APIValue::Boolean(false))
+        );
+        api_response_btreemap.insert(
+            String::from("Error"), 
+            Some(APIValue::String(String::from("User not found")))
+        );
+        api_response_vector.push(api_response_btreemap); 
+
+        api_send_response_json(request, api_response_vector);
+        
+        return;
+    }
+
+    //get password from database response
+    let db_pw = match data[0].get("password").unwrap() {
+        Some(DatabaseValue::Varchar(pw)) => pw.clone(),
+        _ => String::from(""),
+    };
+
+    //check if the password matches
+    if db_pw == user_pw.as_str() {//TODO when pw matches
+        //debug
+        println!("pw matches");
+        //debug
+        api_response_btreemap.insert(
+            String::from("LoginSuccessfull"), 
+            Some(APIValue::Boolean(true))
+        );
+
+        //generate new token
+        let user_token = generate_token();
+
+        //insert token into btreemap
+        api_response_btreemap.insert(
+            String::from("UserToken"), 
+            Some(APIValue::String(user_token.to_string()))
+        );
+
+        let query = format!(
+            "UPDATE users SET token = '{}' WHERE username = '{}'", 
+            user_token,
+            user,
+        );
+
+        let mut db_con = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
+        let data = db_con.query(&query);
+        database_connections.release_connection(db_con);
+
+        //debug
+        println!("response from insert of token: {:?}", data);
+        //debug
+
+    } else {//TODO what to do, when password does not match
+        //debug
+        println!("pw does NOT match");
+        //debug
+        api_response_btreemap.insert(
+            String::from("LoginSuccessfull"), 
+            Some(APIValue::Boolean(false))
+        );
+    }
+
+    api_response_vector.push(api_response_btreemap); 
+
+    crate::api_send_response_json(request, api_response_vector);
+
+}
+
