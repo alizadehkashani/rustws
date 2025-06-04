@@ -39,19 +39,6 @@ pub fn api_login_auto_logon (
     let data = db_con.query(&query);
     database_connections.release_connection(db_con);
 
-    //check if the user wants to logged in automatically
-    let user_remember_login = match data[0].get("rememberlogin").unwrap() {
-        Some(DatabaseValue::Boolean(true)) => true,
-        Some(DatabaseValue::Boolean(false)) => false,
-        _ => false,
-    };
-
-    //debug
-    println!("user auto login data: {:?}", data);
-    println!("user auto login data: {:?}", data[0].get("rememberlogin").unwrap());
-    println!("user auto login data: {:?}", user_remember_login);
-    //debug
-
     //check if no user has been found, if yes, return
     if data.len() == 0 {
         api_response_btreemap.insert(
@@ -67,7 +54,16 @@ pub fn api_login_auto_logon (
         api_send_response_json(request, api_response_vector);
         
         return;
-    } else if user_remember_login {
+    }
+
+    //check if the user wants to logged in automatically
+    let user_remember_login = match data[0].get("rememberlogin").unwrap() {
+        Some(DatabaseValue::Boolean(true)) => true,
+        Some(DatabaseValue::Boolean(false)) => false,
+        _ => false,
+    };
+
+    if user_remember_login {
         api_response_btreemap.insert(
             String::from("AuthenticationSuccessfull"), 
             Some(APIValue::Boolean(true))
@@ -162,7 +158,7 @@ pub fn api_login_logon (
             Some(APIValue::Boolean(false))
         );
         api_response_btreemap.insert(
-            String::from("Error"), 
+            String::from("Message"), 
             Some(APIValue::String(String::from("User not found")))
         );
         api_response_vector.push(api_response_btreemap); 

@@ -127,7 +127,10 @@ pub fn read_request_line (buf_reader: &mut BufReader<&TcpStream>) -> String {
     //read the line into the new string
     //TODO replace unwrap with error handling
     //hint: connection reset by peer
-    buf_reader.read_line(&mut request_line).unwrap();
+    match buf_reader.read_line(&mut request_line) {
+        Ok(T) => println!("bytes read: {}", T),
+        Err(Error) => println!("error: {}", Error), 
+    }
 
 
     let request_line = request_line.trim().to_string();
