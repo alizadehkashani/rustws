@@ -19,15 +19,6 @@ fn main() {
         "memeoff" //database
     ));
 
-    /*
-    let mut database_connection = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
-    let data = database_connection.query("SELECT * FROM users");
-    database_connections.release_connection(database_connection);
-
-    let json = json_encode(&data);
-    println!("json: {}", json);
-    */
-
     let listener = TcpListener::bind("212.132.120.118:7878").unwrap();
     let threadpool = ThreadPool::new(8);
 
@@ -45,20 +36,6 @@ fn main() {
 }
 
 fn handle_connection(stream: TcpStream, database_connections: Arc<DatabaseConnectionPool>) {
-    
-    //debug
-    //let mut database_connection = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
-    //let db_data = database_connection.query("SELECT * FROM users");
-    //debug
-
-    //debug
-    //println!("response from DB: {:?}", db_data[0]);
-    //debug
-
-    //debug
-    //let _json = json_encode(&db_data);
-    //database_connections.release_connection(database_connection);
-    //debug
 
     println!("!!!!!!!!!!!!!!!!!!!!!!!!!!new connection");
 
@@ -69,7 +46,6 @@ fn handle_connection(stream: TcpStream, database_connections: Arc<DatabaseConnec
 
     //debug
     println!("request line: {}", request_line);
-    //debug
 
     //parse the request line
     let request_line = parse_request_line(request_line);
@@ -125,78 +101,5 @@ fn handle_connection(stream: TcpStream, database_connections: Arc<DatabaseConnec
     };
 
     send_http_response(full_request, database_connections);
-
-    /*
-    //variable to hold the content length of the body
-    let mut content_length: usize = 0;
-
-    //varible to hold the content type
-    let mut content_type = String::new();
-
-    let mut body_hash = HashMap::new();
-
-    if method == "POST" {
-
-
-        let status_line = "HTTP/1.1 200 OK";
-
-        //let json = "{\"user\":\"ramin\"}";
-        //let json = json.trim();
-        let length = json.chars().count();
-
-        let response = 
-            format!("{status_line}\r\nContent-Length: {length}\r\nContent-Type: application/json\r\n\r\n{json}");
-
-        stream.write_all(response.as_bytes()).unwrap();
-
-
-          
-    } else {
-
-        if &request_line[..] == "GET /favicon.ico HTTP/1.1" {
-            println!("fav icon get");
-            let mut favicon_content = Vec::new();
-            let path_favicon = format!("{}/favicon.png", ROOT);
-            println!("path to favicon: {}", path_favicon);
-            let mut file = File::open(path_favicon).unwrap();
-            file.read_to_end(&mut favicon_content).unwrap();
-            let response = format!(
-                "HTTP/1.1 200 OK\r\nContent-Type: image/png/r/nContent-Length: {}\r\n\r\n",
-                favicon_content.len()
-            );
-            stream.write_all(response.as_bytes()).unwrap();
-            stream.write_all(&favicon_content).unwrap();
-
-            return;
-        }
-
-        let (status_line, filename) = match &request_line[..] {
-            "GET / HTTP/1.1" => ("HTTP/1.1 200 OK", "hello.html"),
-            "GET /sleep HTTP/1.1" => {
-                thread::sleep(Duration::from_secs(5));
-                ("HTTP/1.1 200 OK", "hello.html")
-            },
-            _ => ("HTTP/1.1 200 OK", "404.html")
-
-        };
-
-        let contents = fs::read_to_string(filename).unwrap();
-        let length = contents.len();
-
-        let response = 
-            format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
-
-        stream.write_all(response.as_bytes()).unwrap();
-    }
-
-    let status_line = "HTTP/1.1 200 OK";
-    let contents = fs::read_to_string("hello.html").unwrap();
-    let length = contents.len();
-
-    let response = 
-    format!("{status_line}\r\nContent-Length: {length}\r\n\r\n{contents}");
-
-    stream.write_all(response.as_bytes()).unwrap();
-    */
 
 }

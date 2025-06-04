@@ -121,13 +121,6 @@ pub fn api_login_logon (
         remember = *json_remember
     }; 
 
-    //debug
-    println!("post data: {:?}", post_data);
-    println!("user: {}", user);
-    println!("pw: {}", user_pw);
-    println!("remember: {}", remember);
-    //debug
-
     let mut api_response_vector: Vec<BTreeMap<String, Option<APIValue>>> = Vec::new();
     let mut api_response_btreemap: BTreeMap<String, Option<APIValue>> = BTreeMap::new();
 
@@ -140,18 +133,9 @@ pub fn api_login_logon (
     let data = db_con.query(&query);
     database_connections.release_connection(db_con);
 
-    //debug
-    println!("user dat: {:?}", data);
-    //debug
-
     //check if a user has been found
     //if not, return
     if data.len() == 0 {
-        //TODO handle if no user has been found
-        //debug
-        println!("no user has been found");
-        println!("length of db response: {}", data.len());
-        //debug
 
         api_response_btreemap.insert(
             String::from("LoginSuccessfull"), 
@@ -176,9 +160,7 @@ pub fn api_login_logon (
 
     //check if the password matches
     if db_pw == user_pw.as_str() {//TODO when pw matches
-        //debug
-        println!("pw matches");
-        //debug
+
         api_response_btreemap.insert(
             String::from("LoginSuccessfull"), 
             Some(APIValue::Boolean(true))
@@ -195,10 +177,6 @@ pub fn api_login_logon (
 
         let token_creation_timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
 
-        //debug
-        println!("token creation timestamp: {}", token_creation_timestamp);
-        //debug
-
         let query = format!(
             "UPDATE users SET token = '{}', tokencrtime = {}, rememberlogin = {} WHERE username = '{}'", 
             user_token,
@@ -208,20 +186,17 @@ pub fn api_login_logon (
         );
 
         let mut db_con = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
-        let data = db_con.query(&query);
+        db_con.query(&query);
         database_connections.release_connection(db_con);
 
-        //debug
-        println!("response from insert of token: {:?}", data);
-        //debug
-
     } else {//TODO what to do, when password does not match
-        //debug
-        println!("pw does NOT match");
-        //debug
         api_response_btreemap.insert(
             String::from("LoginSuccessfull"), 
             Some(APIValue::Boolean(false))
+        );
+        api_response_btreemap.insert(
+            String::from("Message"), 
+            Some(APIValue::String(String::from("Incorrect password")))
         );
     }
 

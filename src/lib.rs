@@ -125,17 +125,16 @@ pub fn read_request_line (buf_reader: &mut BufReader<&TcpStream>) -> String {
     let mut request_line = String::new();
 
     //read the line into the new string
-    //TODO replace unwrap with error handling
     //hint: connection reset by peer
     match buf_reader.read_line(&mut request_line) {
-        Ok(T) => println!("bytes read: {}", T),
-        Err(Error) => println!("error: {}", Error), 
+        Ok(_) => {},
+        Err(err) => println!("error: {}", err), 
     }
 
 
     let request_line = request_line.trim().to_string();
 
-        request_line
+    request_line
 }
 
 pub fn parse_request_line (request_line: String) -> RequestLine {
@@ -308,11 +307,6 @@ pub fn send_http_response (
     database_connections: Arc<DatabaseConnectionPool>
 ) {
 
-    //debug
-    println!("path: {}", request.request_line.path);
-    //debug
-
-
     //create full path by adding root directory
     let path = match request.request_line.path.as_str() {
         "/" => format!("{}{}", constants::ROOT, "/login.html"),
@@ -335,10 +329,6 @@ pub fn send_http_response (
         }
 
     };
-
-    //debug
-    println!("path: {}", path);
-    //debug
 
     //get the file type
     let file_type = match path.split('.').nth(1) {
@@ -400,9 +390,8 @@ pub fn execute_api_call(
     category: &str, 
     function: &str
 ) {
-    println!("category: {}", category);
-    println!("function: {}", function);
 
+    //check catgeory and function and execute accordingly
     match category {
         "login" => {
             match function {
@@ -477,18 +466,10 @@ pub fn get_content_type (file_type: &str) -> &str {
 
 pub fn parse_json_string (json_string: &str) -> HashMap<String, JsonType> {
 
-    //debug
-    println!("json string: {}", json_string);
-    //debug
-
     let mut json_hash = HashMap::new();
 
     //remove '{' and '}' from beginning and end
     let json_trim: &str = &json_string[1..json_string.len() - 1];
-
-    //debug
-    println!("json string trim: {}", json_trim);
-    //debug
 
     for item in json_trim.split(",") {//split by the value pairs
         let mut item_iter = item.split(":");//split the key and the value
@@ -756,7 +737,6 @@ impl DatabaseConnectionPool {
 }
 
 pub struct DatabaseConnection {
-    #[allow(dead_code)]
     id: usize,
     reader: BufReader<TcpStream>,
 }
@@ -774,10 +754,16 @@ impl DatabaseConnection {
         Self::read_authentication_response(&mut reader);
         Self::read_paramters(&mut reader);
 
+        //debug
+        println!("Databaseconnection {} established", id);
+
         DatabaseConnection { id, reader } 
     }
     
     pub fn query(&mut self, query: &str) -> Vec<BTreeMap<String, Option<DatabaseValue>>> {
+        //debug
+        println!("Databse connection {} got query: {}", self.id, query);
+        
         //send query to database
         Self::send_query(&mut self.reader, &query);
         //put response of database into variable
@@ -881,10 +867,6 @@ impl DatabaseConnection {
         for bytes in startup_message_body {
             startup_message.push(bytes);
         }
-
-        //DEBUG
-        //println!("startup message: {:?}", startup_message);
-        //DEBUG
 
         //send startup message to db server
         Self::write_to_db_stream(reader.get_mut(), &startup_message);
@@ -1017,10 +999,6 @@ impl DatabaseConnection {
         Self::read_from_db_stream(reader, &mut query_response_head);
         //get the length of the message
         let query_response_length: i32 = i32::from_be_bytes(query_response_head[1..].try_into().unwrap());
-
-        //debug
-        println!("reponse: {}", query_response_head[0]);
-        //debug
 
         //make sure, that the response is a row desciption
         //or error
