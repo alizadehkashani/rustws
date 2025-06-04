@@ -1,11 +1,6 @@
 use std::{
-    fs,
-    fs::{File},
-    io::{prelude::*, BufReader},
+    io::BufReader,
     net::{TcpListener, TcpStream},
-    thread,
-    time::Duration,
-    collections::HashMap,
     sync::Arc,
 };
 use webserver::*;
@@ -90,13 +85,13 @@ fn handle_connection(stream: TcpStream, database_connections: Arc<DatabaseConnec
 
     //if the header contains information for the accept of media type
     //parse the information
-    let header_accept = match http_headers.contains_key("Accept") {
+    let _header_accept = match http_headers.contains_key("Accept") {
         true => Some(parse_header_accept(&http_headers["Accept"])),
         false => None,
 
     };
 
-    let content_type = match http_headers.get("Content-Type") {
+    let _content_type = match http_headers.get("Content-Type") {
         Some(ctype) => ctype.to_string(),
         None => String::from("no content type defined"),
     };

@@ -9,7 +9,10 @@ use crate::parse_json_string;
 
 use std::collections::BTreeMap;
 use std::sync::Arc;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
 
+//function for auto login of user
 pub fn api_login_auto_logon (
     request: HTTPRequest, 
     database_connections: Arc<DatabaseConnectionPool>,
@@ -21,17 +24,14 @@ pub fn api_login_auto_logon (
         _ => String::from(""),
     };
 
+
     //create variables for the response
     let mut api_response_vector: Vec<BTreeMap<String, Option<APIValue>>> = Vec::new();
     let mut api_response_btreemap: BTreeMap<String, Option<APIValue>> = BTreeMap::new();
 
-    //debug
-    println!("token: {}", user_token);
-    //debug
-
     //see if a user with this token is in the database
     let query = format!(
-        "SELECT token FROM users WHERE token = '{}'", 
+        "SELECT token, rememberlogin FROM users WHERE token = '{}'", 
         user_token
     );
 
@@ -39,11 +39,19 @@ pub fn api_login_auto_logon (
     let data = db_con.query(&query);
     database_connections.release_connection(db_con);
 
+    //check if the user wants to logged in automatically
+    let user_remember_login = match data[0].get("rememberlogin").unwrap() {
+        Some(DatabaseValue::Boolean(true)) => true,
+        Some(DatabaseValue::Boolean(false)) => false,
+        _ => false,
+    };
+
     //debug
-    println!("user with token: {:?}", data);
+    println!("user auto login data: {:?}", data);
+    println!("user auto login data: {:?}", data[0].get("rememberlogin").unwrap());
+    println!("user auto login data: {:?}", user_remember_login);
     //debug
 
-        
     //check if no user has been found, if yes, return
     if data.len() == 0 {
         api_response_btreemap.insert(
@@ -59,14 +67,14 @@ pub fn api_login_auto_logon (
         api_send_response_json(request, api_response_vector);
         
         return;
-    } else {
+    } else if user_remember_login {
         api_response_btreemap.insert(
             String::from("AuthenticationSuccessfull"), 
             Some(APIValue::Boolean(true))
         );
         api_response_btreemap.insert(
             String::from("Message"), 
-            Some(APIValue::String(String::from("Matchin user with token has been found")))
+            Some(APIValue::String(String::from("Matching user with token has been found")))
         );
 
         api_response_vector.push(api_response_btreemap); 
@@ -74,12 +82,21 @@ pub fn api_login_auto_logon (
         
         return;
 
+    } else {
+        api_response_btreemap.insert(
+            String::from("AuthenticationSuccessfull"), 
+            Some(APIValue::Boolean(false))
+        );
+        api_response_btreemap.insert(
+            String::from("Message"), 
+            Some(APIValue::String(String::from("Matching user with token has been found, but remember login is not active")))
+        );
+
+        api_response_vector.push(api_response_btreemap); 
+        api_send_response_json(request, api_response_vector);
+        
+        return;
     }
-
-
-    
-
-    
 }
 
 pub fn api_login_logon (    
@@ -119,13 +136,17 @@ pub fn api_login_logon (
     let mut api_response_btreemap: BTreeMap<String, Option<APIValue>> = BTreeMap::new();
 
     let query = format!(
-        "SELECT * FROM users WHERE username = '{}'", 
+        "SELECT id, password FROM users WHERE username = '{}'", 
         user
     );
 
     let mut db_con = DatabaseConnectionPool::get_connection(&database_connections).unwrap();
     let data = db_con.query(&query);
     database_connections.release_connection(db_con);
+
+    //debug
+    println!("user dat: {:?}", data);
+    //debug
 
     //check if a user has been found
     //if not, return
@@ -176,9 +197,17 @@ pub fn api_login_logon (
             Some(APIValue::String(user_token.to_string()))
         );
 
+        let token_creation_timestamp = SystemTime::now().duration_since(UNIX_EPOCH).unwrap().as_secs();
+
+        //debug
+        println!("token creation timestamp: {}", token_creation_timestamp);
+        //debug
+
         let query = format!(
-            "UPDATE users SET token = '{}' WHERE username = '{}'", 
+            "UPDATE users SET token = '{}', tokencrtime = {}, rememberlogin = {} WHERE username = '{}'", 
             user_token,
+            token_creation_timestamp,
+            remember,
             user,
         );
 

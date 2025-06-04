@@ -15,17 +15,23 @@ use rand::{distributions::Alphanumeric, Rng};
 mod constants;
 mod api;
 
-trait MatchJsonType {
+pub trait MatchJsonType {
     fn match_json_type(&self) -> JsonType;
 }
 
 pub struct DatabaseRowDescription {
     name: String,
+    #[allow(dead_code)]
     table_oid: i32,
+    #[allow(dead_code)]
     column_number: i16,
+    #[allow(dead_code)]
     type_oid: i32,
+    #[allow(dead_code)]
     type_size: i16,
+    #[allow(dead_code)]
     type_add_info: i32,
+    #[allow(dead_code)]
     type_send_method: i16,
 }
 
@@ -42,14 +48,18 @@ pub enum Method {
 #[derive(Debug)]
 pub enum DatabaseValue {
     Integer(i32),
+    BigInteger(i64),
     Varchar(String),
+    Boolean(bool),
 }
 
 impl MatchJsonType for DatabaseValue {
     fn match_json_type(&self) -> JsonType {
         match &self {
             DatabaseValue::Integer(int) => JsonType::Number(*int),
+            DatabaseValue::BigInteger(int) => JsonType::BigNumber(*int),
             DatabaseValue::Varchar(string) => JsonType::String(string.to_string()),
+            DatabaseValue::Boolean(bool) => JsonType::Boolean(*bool),
         }
     }
 }
@@ -58,6 +68,7 @@ impl MatchJsonType for DatabaseValue {
 pub enum JsonType {
     String(String),
     Number(i32),
+    BigNumber(i64),
     Boolean(bool),
     Null,
 }
@@ -344,7 +355,7 @@ pub fn send_http_response (
         Ok(mut file) => {
             //read to end into vector, handle errors
             match file.read_to_end(&mut content_vector) {
-                Ok(content) => {
+                Ok(_) => {
 
                     let status_line = "HTTP/1.1 200 OK";
                     let length = content_vector.len();
@@ -432,13 +443,14 @@ pub fn api_send_response_json <T: MatchJsonType> (
 }
 
 pub fn send_404 (mut request: HTTPRequest) {
-    println!("send 404");
+
     let status_line = "HTTP/1.1 404 Not Found";
 
     //create vector to hold content
     let mut content_vector = Vec::new();
+
     //open the file, handle errors
-    let content_file = File::open("404.html").unwrap()
+    File::open("404.html").unwrap()
         .read_to_end(&mut content_vector)
         .unwrap();
 
@@ -567,6 +579,9 @@ pub fn json_encode<T: MatchJsonType  > (data: &Vec<BTreeMap<String, Option<T>>>)
                             json.push('"');
                         },
                         JsonType::Number(number) => {
+                            json.push_str(&number.to_string());
+                        },
+                        JsonType::BigNumber(number) => {
                             json.push_str(&number.to_string());
                         },
                         JsonType::Boolean(bool) => {
@@ -738,6 +753,7 @@ impl DatabaseConnectionPool {
 }
 
 pub struct DatabaseConnection {
+    #[allow(dead_code)]
     id: usize,
     reader: BufReader<TcpStream>,
 }
@@ -1010,7 +1026,6 @@ impl DatabaseConnection {
         //create vector holding the individual rows
         let mut rows: Vec<BTreeMap<String, Option<DatabaseValue>>> = Vec::new();
 
-
         //if error read error
         //and exit out of function
         if query_response_head[0] == 69 {
@@ -1231,6 +1246,21 @@ impl DatabaseConnection {
                                         Some(value)//put the value into an option
 
                                     },
+                                    20 => {//20 = bigint
+
+                                        //turn the individual bytes into a string
+                                        let value = std::str::from_utf8(&value[0..])
+                                                .unwrap()
+                                                .to_string();
+
+                                        //turn the string into an integer
+                                        let value = DatabaseValue::BigInteger(
+                                            value.parse::<i64>().unwrap()
+                                        );
+
+                                        Some(value)//put the value into an option
+
+                                    },
                                     1043 => {//1043 = varchar
                                         //turn the individual bytes into a string
                                         let value =  DatabaseValue::Varchar(
@@ -1242,8 +1272,36 @@ impl DatabaseConnection {
                                         Some(value)//put the value into an option
                                         
                                     },
+                                    1042 => {//1042 = char(n)
+                                        //turn the individual bytes into a string
+                                        let value =  DatabaseValue::Varchar(
+                                            std::str::from_utf8(&value[0..])
+                                                .unwrap()
+                                                .to_string()
+                                        );
+
+                                        Some(value)//put the value into an option
+                                        
+                                    },
+                                    16 => {//16 = boolean
+                                        //turn the individual bytes into a string
+                                        let value = std::str::from_utf8(&value[0..])
+                                                .unwrap();
+
+                                        let boolean = match value {
+                                            "t" => DatabaseValue::Boolean(true),
+                                            "f" => DatabaseValue::Boolean(false),
+                                            _ => DatabaseValue::Boolean(false),
+                                        };
+
+                                        Some(boolean)//put the value into an option
+                                        
+                                    },
                                     _ =>  {
-                                        println!("encountered database type oid which is not defined");
+                                        println!(
+                                            "encountered database type oid which is not defined: {}", 
+                                            row_descriptions[i].type_oid
+                                        );
                                         None
                                     },
                                 }
