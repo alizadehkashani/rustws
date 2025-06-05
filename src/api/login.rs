@@ -1,3 +1,8 @@
+use std::collections::BTreeMap;
+use std::sync::Arc;
+use std::time::SystemTime;
+use std::time::UNIX_EPOCH;
+
 use crate::APIValue;
 use crate::JsonType;
 use crate::DatabaseConnectionPool;
@@ -6,11 +11,6 @@ use crate::HTTPRequest;
 use crate::generate_token;
 use crate::api_send_response_json;
 use crate::parse_json_string;
-
-use std::collections::BTreeMap;
-use std::sync::Arc;
-use std::time::SystemTime;
-use std::time::UNIX_EPOCH;
 
 //function for auto login of user
 pub fn api_login_auto_logon (
