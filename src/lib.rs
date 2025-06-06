@@ -365,13 +365,14 @@ pub fn send_http_response (
             };
         },
         Err(error_message) => {
-            println!("file open error message: {}", error_message); 
+            println!("file open error message{}", error_message); 
 
             //check the error kind to respons accordingly
             match error_message.kind() {
                 ErrorKind::NotFound => {
                     println!("error kind is NotFound");
 
+                    //TODO send 404 response
                     send_404(request);
 
                 },
@@ -446,11 +447,8 @@ pub fn send_404 (mut request: HTTPRequest) {
     //create vector to hold content
     let mut content_vector = Vec::new();
 
-    //creat path
-    let path = [constants::ROOT, "/404.html"].concat();
-
     //open the file, handle errors
-    File::open(path).unwrap()
+    File::open("404.html").unwrap()
         .read_to_end(&mut content_vector)
         .unwrap();
 
@@ -465,7 +463,6 @@ pub fn send_404 (mut request: HTTPRequest) {
 pub fn get_content_type (file_type: &str) -> &str {
     match file_type {
         "png" => "image/png",
-        "svg" => "image/svg+xml",
         "ico" => "image/x-icon",
         "css" => "text/css",
         "js" => "application/javascript",
